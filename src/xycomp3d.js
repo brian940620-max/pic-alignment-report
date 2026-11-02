@@ -26,6 +26,17 @@ export class XYComp3D {
     this.fixed = new THREE.Group(); this.stage = new THREE.Group(); this.rot = new THREE.Group(); this.fa = new THREE.Group(); this.dyn = new THREE.Group();
     this.axisG = new THREE.Group();                        // 轉軸（掛在 XY 台上，跟著補回移動）
     this.rot.add(this.fa); this.stage.add(this.rot, this.axisG); sc.add(this.fixed, this.stage, this.dyn);
+    // Reuse the trail, arrow and result marker throughout the animation.
+    this.trailLine = new THREE.Line(new THREE.BufferGeometry(), new THREE.LineBasicMaterial({ color: 0xff4d4d }));
+    this.trailLine.visible = false; this.trailLine.frustumCulled = false;
+    this.backArrow = new THREE.ArrowHelper(new THREE.Vector3(0, 1, 0), new THREE.Vector3(), 1, 0x69db7c);
+    this.backArrow.visible = false;
+    this.resultRing = new THREE.Mesh(new THREE.RingGeometry(0.45, 0.55, 40), new THREE.MeshBasicMaterial({ color: 0x69db7c, side: THREE.DoubleSide }));
+    this.resultRing.position.set(0, 0, -0.5); this.resultRing.visible = false;
+    this.dyn.add(this.trailLine, this.backArrow, this.resultRing);
+    this.backLabel = this.lab(this.dyn, 'XY 台往反方向移回', 'chip', new THREE.Vector3()); this.backLabel.visible = false;
+    this.resultLabel = this.lab(this.dyn, '虛擬旋轉中心', 'chip', new THREE.Vector3(0, -0.9, -0.5)); this.resultLabel.visible = false;
+    this.controls.addEventListener('change', () => this.requestRender());
     this.key = '';
     this.ro = new ResizeObserver(() => this.resize()); this.ro.observe(holder);
     window.addEventListener('deckscale', () => this.resize());
@@ -94,29 +105,51 @@ export class XYComp3D {
     const d1 = new THREE.Vector2(pr * (Math.cos(th) - 1), -pr * Math.sin(th));      // 第 1 通道被帶走（顯示座標）
     this.rot.rotation.z = -th;
     this.stage.position.set(-d1.x * st.f, -d1.y * st.f, 0);
-    this.clear(this.dyn);
     const p1 = new THREE.Vector3(); this.tip1.getWorldPosition(p1);
     if (st.resetTrail) this.trail = [];
-    const lastP = this.trail[this.trail.length - 1]; if (!lastP || lastP.distanceTo(p1) > 0.005) this.trail.push(p1.clone());
-    if (this.trail.length > 1) this.dyn.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(this.trail.map((q) => q.clone().setZ(-0.45))), new THREE.LineBasicMaterial({ color: 0xff4d4d })));
+    const lastP = this.trail[this.trail.length - 1];
+    if (!lastP || lastP.distanceTo(p1) > 0.005) {
+      this.trail.push(p1.clone());
+      let positions = this.trailLine.geometry.getAttribute('position');
+      if (!positions || positions.count < this.trail.length) {
+        const geometry = new THREE.BufferGeometry();
+        positions = new THREE.BufferAttribute(new Float32Array(Math.max(256, (positions?.count || 0) * 2) * 3), 3).setUsage(THREE.DynamicDrawUsage);
+        this.trail.forEach((q, i) => positions.setXYZ(i, q.x, q.y, -0.45));
+        geometry.setAttribute('position', positions); this.trailLine.geometry.dispose(); this.trailLine.geometry = geometry;
+      } else {
+        positions.setXYZ(this.trail.length - 1, p1.x, p1.y, -0.45);
+        positions.clearUpdateRanges(); positions.addUpdateRange((this.trail.length - 1) * 3, 3);
+        positions.needsUpdate = true;
+      }
+    }
+    this.trailLine.geometry.setDrawRange(0, this.trail.length); this.trailLine.visible = this.trail.length > 1;
     const back = new THREE.Vector3(-p1.x, -p1.y, 0);
-    if (st.arrow && back.length() > 0.05) {
-      this.dyn.add(new THREE.ArrowHelper(back.clone().normalize(), p1.clone().setZ(-0.5), back.length(), 0x69db7c, Math.min(0.35, back.length() * 0.45), Math.min(0.22, back.length() * 0.3)));
-      this.lab(this.dyn, 'XY 台往反方向移回', 'chip', p1.clone().add(back.clone().multiplyScalar(0.5)).add(new THREE.Vector3(0, -0.7, -0.5)));
+    this.backArrow.visible = this.backLabel.visible = !!st.arrow && back.length() > 0.05;
+    if (this.backArrow.visible) {
+      this.backArrow.position.copy(p1).setZ(-0.5); this.backArrow.setDirection(back.clone().normalize());
+      this.backArrow.setLength(back.length(), Math.min(0.35, back.length() * 0.45), Math.min(0.22, back.length() * 0.3));
+      this.backLabel.position.copy(p1).addScaledVector(back, 0.5).add(new THREE.Vector3(0, -0.7, -0.5));
     }
-    if (st.f >= 1 && Math.abs(th) > 1e-6) {
-      const ring = new THREE.Mesh(new THREE.RingGeometry(0.45, 0.55, 40), new THREE.MeshBasicMaterial({ color: 0x69db7c, side: THREE.DoubleSide })); ring.position.set(0, 0, -0.5); this.dyn.add(ring);
-      this.lab(this.dyn, '虛擬旋轉中心', 'chip', new THREE.Vector3(0, -0.9, -0.5));
-    }
+    this.resultRing.visible = this.resultLabel.visible = st.f >= 1 && Math.abs(th) > 1e-6;
   }
 
-  resetView() { this.camera.position.copy(this.home.pos); this.controls.target.copy(this.home.tgt); }
+  resetView() { this.camera.position.copy(this.home.pos); this.controls.target.copy(this.home.tgt); this.requestRender(); }
   resize() {
     const w = this.holder.clientWidth, h = this.holder.clientHeight; if (w < 2 || h < 2) return;
-    this.renderer.setPixelRatio(Math.min(2, (window.devicePixelRatio || 1) * (window.__deckScale || 1)));
+    const dpr = Math.min(2, (window.devicePixelRatio || 1) * (window.__deckScale || 1)), sizeKey = `${w}/${h}/${dpr}`;
+    if (this.sizeKey === sizeKey) return; this.sizeKey = sizeKey;
+    this.renderer.setPixelRatio(dpr);
     this.renderer.setSize(w, h, false); this.renderer.domElement.style.width = w + 'px'; this.renderer.domElement.style.height = h + 'px';
     this.lbl.setSize(w, h); this.camera.aspect = w / h; this.camera.updateProjectionMatrix();
+    this.requestRender();
   }
-  start(onFrame) { if (this.on) return; this.on = true; this.resize(); const tick = (now) => { if (!this.on) return; onFrame && onFrame(now); this.controls.update(); this.renderer.render(this.scene, this.camera); this.lbl.render(this.scene, this.camera); this.raf = requestAnimationFrame(tick); }; this.raf = requestAnimationFrame(tick); }
-  stop() { this.on = false; cancelAnimationFrame(this.raf); }
+  requestRender() { if (this.on && !this.raf) this.raf = requestAnimationFrame(now => this.renderFrame(now)); }
+  renderFrame(now) {
+    this.raf = 0; if (!this.on) return;
+    const playing = this.onFrame?.(now), moving = this.controls.update();
+    this.renderer.render(this.scene, this.camera); this.lbl.render(this.scene, this.camera);
+    if (playing || moving) this.requestRender();
+  }
+  start(onFrame) { if (this.on) return; this.onFrame = onFrame; this.on = true; this.resize(); this.requestRender(); }
+  stop() { this.on = false; cancelAnimationFrame(this.raf); this.raf = 0; }
 }

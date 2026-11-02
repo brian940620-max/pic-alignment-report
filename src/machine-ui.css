@@ -49,3 +49,112 @@
  .machine-ui .pctl .stp { padding:9px 10px; }
  .machine-ui .pctl .stp div div { font-size:13px; }
 }
+
+/* First validation page: the hardware is the main visual. */
+.machine-page-1 .tour-layout { gap:16px; }
+.machine-page-1 .pctl { background:linear-gradient(155deg,#182a3d,#101d2c); border-color:#34485b; padding:14px; gap:8px; overflow-y:auto; scrollbar-width:thin; scrollbar-color:#526779 transparent; }
+.machine-page-1 .pctl > * { flex-shrink:0; }
+.machine-page-1 .tour-panel-title { padding:2px 5px 10px; }
+.machine-page-1 .tour-panel-title > span { font:500 10px var(--mono); letter-spacing:2.5px; color:#91acbf; }
+.machine-page-1 .tour-panel-title h2 { font-size:23px; margin:8px 0 4px; color:#eef3f8; }
+.machine-page-1 .tour-panel-title p { font-size:13px; margin:0; color:#92aabd; }
+.machine-page-1 .m336 { justify-content:center; gap:6px; margin-bottom:5px; font-size:13px; }
+.machine-page-1 .m336 span { padding:5px 9px; }
+.machine-page-1 .pctl .stp { padding:9px 10px; background:#17293b; border-color:#30465a; }
+.machine-page-1 .pctl .stp b { font-size:15px; }
+.machine-page-1 .pctl .stp .n { width:29px; height:29px; font-size:13px; }
+.machine-page-1 .pctl .role { display:block; width:fit-content; margin:3px 0 0; font-size:10px; opacity:.9; }
+.machine-page-1 .pctl .stp.on { background:#243a4e; border-color:#bfa580; padding-top:14px; padding-bottom:14px; }
+.machine-page-1 .pctl .stp div div { font-size:13px; line-height:1.7; margin-top:9px; }
+.machine-page-1 .pctl .btn { background:#203548; color:#dce7ef; border:1px solid #415a70; font-size:12px; padding:8px 10px; }
+.machine-page-1 .pctl .btn:hover { background:#304b62; }
+.machine-page-1 .tour-scene { overflow:hidden; border:1px solid #435466; box-shadow:0 12px 35px #0003; }
+.machine-page-1 .tour-viewport { border-radius:12px; }
+.machine-page-1 .tour-topbar { position:absolute; top:16px; left:18px; right:18px; z-index:3; display:flex; align-items:center; justify-content:space-between; pointer-events:none; }
+.machine-page-1 .tour-caption { display:flex; align-items:center; gap:8px; font-size:12px; letter-spacing:1px; color:#d5e2ed; text-shadow:0 1px 5px #000; }
+.machine-page-1 .tour-dot { width:6px; height:6px; border-radius:50%; background:#a6c4d5; }
+.machine-page-1 .tour-quality { pointer-events:auto; }
+.machine-page-1 .tour-aside .tour-topbar { right:418px; }
+.machine-page-1 .tour-aside .tour-caption { display:none; }
+.machine-page-1 .tour-aside .tour-topbar { justify-content:flex-end; }
+.machine-page-1 .tour-aside .tour-viewbar { left:calc((100% - 400px) / 2); }
+.machine-page-1 .tour-viewbar { position:absolute; bottom:39px; left:50%; transform:translateX(-50%); z-index:3; }
+.machine-page-1 .tour-viewport .seg { border:1px solid #61748799; border-radius:8px; background:#152232e8; box-shadow:0 4px 16px #0002; overflow:hidden; backdrop-filter:blur(12px); white-space:nowrap; }
+.machine-page-1 .tour-viewport .seg button { background:transparent; color:#bcd0df; border-color:#647c8c40; padding:8px 13px; font-size:12px; min-height:32px; }
+.machine-page-1 .tour-viewport .seg button.on { color:#102332; background:#d1dfeb; box-shadow:none; }
+.machine-page-1 .tour-viewport .seg button:focus-visible { outline:2px solid #f0c58d; outline-offset:-3px; }
+.machine-page-1 .tour-note { position:absolute; left:18px; bottom:13px; z-index:2; pointer-events:none; font-size:10px; color:#b7c7d5; letter-spacing:.5px; }
+.machine-page-1 .tour-running .tour-note { display:none; }
+
+/* A shared instrument-style workspace across all validation views. */
+.machine-ui .machine-layout { gap:14px; }
+.machine-ui .machine-layout > .card { min-width:0; border:1px solid #3e5367; }
+.machine-ui .machine-inspector { background:linear-gradient(155deg,#172a3e,#102033); }
+.machine-ui .machine-evidence { display:flex; align-items:center; gap:9px; color:#a7bacb; font-size:11px; line-height:1.5; flex:none; }
+.machine-ui .machine-evidence > span { padding:3px 6px; border:1px solid #61778a; border-radius:4px; color:#c7d6e1; font:10px var(--mono); letter-spacing:1px; white-space:nowrap; }
+.machine-ui .machine-toolbar { position:absolute; z-index:3; left:14px; right:14px; top:48px; display:flex; justify-content:space-between; gap:8px; flex-wrap:wrap; pointer-events:none; }
+.machine-ui .machine-toolbar .seg { pointer-events:auto; background:#172737eb; border:1px solid #65788a80; border-radius:7px; overflow:hidden; backdrop-filter:blur(10px); }
+.machine-ui .machine-toolbar .seg button { background:transparent; color:#bcd0df; border-color:#65788a40; font-size:11px; padding:6px 9px; }
+.machine-ui .machine-toolbar .seg button.on { background:#d1dfeb; color:#102332; }
+.machine-ui .machine-viewport .stg { top:13px; left:14px; }
+.machine-ui .machine-viewport .hud { bottom:48px; left:14px; max-width:calc(100% - 28px); box-sizing:border-box; background:#132537eb; border-color:#6d80934d; }
+.machine-ui .machine-viewport .mag { bottom:13px; left:14px; right:14px; width:fit-content; max-width:calc(100% - 28px); white-space:normal; font-size:10px; }
+.machine-ui .machine-inspector .mban { font-size:16px; line-height:1.5; padding:9px 11px; min-height:24px; }
+.machine-ui .machine-inspector .mstack div { padding:6px 10px; font-size:13px; }
+.machine-ui .machine-inspector .mstack div b { font-size:11px; }
+.machine-ui .machine-inspector .dro { gap:6px; }
+.machine-ui .machine-inspector .dro .gp { padding:6px; }
+.machine-ui .machine-inspector .dro .gp h4 { font-size:12px; margin-bottom:5px; }
+.machine-ui .machine-inspector .dro .r { font-size:12px; padding:3px 2px; gap:3px; white-space:nowrap; }
+.machine-ui .machine-inspector .mml { font-size:12px; line-height:1.6; }
+.machine-ui .machine-inspector .mph { grid-template-rows:minmax(0,1fr); }
+.machine-ui .machine-inspector .mph canvas { min-height:0; min-width:0; }
+.machine-ui .machine-inspector .mml { flex:none; padding:7px 9px; border-radius:6px; background:#112438; }
+.machine-ui .machine-inspector .mchips { gap:4px; }
+.machine-ui .machine-inspector .mchips span { font-size:11px; padding:3px 6px; }
+.machine-ui .machine-transport { flex:none; border-radius:10px; }
+.machine-ui .machine-transport .row { flex-wrap:wrap; gap:8px; }
+.machine-ui .machine-transport .btn { font-size:12px; padding:7px 10px; }
+.machine-ui .machine-transport .small { font-size:12px; color:#b8cad9; }
+.machine-ui .machine-transport input { cursor:pointer; height:18px; margin:0; }
+.machine-ui button:focus-visible,.machine-ui input:focus-visible { outline:2px solid #f0c58d; outline-offset:3px; }
+.machine-ui .fv { background:#18232f; }
+.machine-ui .fv .tl { max-width:58%; gap:10px; top:18px; left:20px; }
+.machine-ui .fv .tl .st { font-size:12px; padding:5px 9px; border-radius:5px; }
+.machine-ui .fv .tl .sp { font-size:18px; font-weight:500; }
+.machine-ui .fv .tr { display:flex; gap:8px; flex-direction:column; align-items:flex-end; top:18px; right:18px; }
+.machine-ui .fv .tr .seg { background:#172737e8; }
+.machine-ui .fv .big { top:95px; font-size:16px; padding:8px 18px; background:#d9e7e5; color:#17332d; border:1px solid #b3d5c9; border-radius:6px; box-shadow:0 4px 20px #0002; }
+.machine-ui .fv .bt { left:18px; right:18px; bottom:32px; gap:8px; }
+.machine-ui .fv .bt > div { padding:10px 14px; background:#152737eb; border-color:#61788b70; border-radius:8px; }
+.machine-ui .fv .bt b { font-size:24px; color:#e9c394; }
+.machine-ui .fv .bt span { color:#b7cbdc; font-size:12px; }
+.machine-ui .fv .pm { height:5px; margin-top:7px; }
+.machine-ui .fv .pm i { background:#e9c394; }
+.machine-ui .micro-note { position:absolute; left:20px; bottom:8px; z-index:3; color:#c0cfdb; background:#102235de; padding:2px 7px; border-radius:4px; font-size:10px; pointer-events:none; }
+.machine-ui .validation-kpis { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:12px; flex:none; }
+.machine-ui .validation-kpi { padding:13px 18px; border:1px solid #40586d; border-top:2px solid var(--kpi-color); border-radius:9px; background:linear-gradient(145deg,#203448,#142536); }
+.machine-ui .validation-kpi > span { font-size:12px; color:#b8c9d8; }
+.machine-ui .validation-kpi strong { display:block; margin-top:7px; color:var(--kpi-color); font:600 26px var(--mono); }
+.machine-ui .validation-kpi small { font-size:13px; margin-left:6px; color:#b6c8d7; }
+.machine-ui.machine-page-5 .summary-layout { grid-template-columns:1.2fr 1fr; gap:14px; }
+.machine-ui.machine-page-5 .summary-layout > .card { background:#15283a; border-color:#3d5469; color:#d7e2ec; padding:16px; gap:7px; min-width:0; }
+.machine-ui.machine-page-5 h2 { font-size:20px; color:#e1eaf3; margin:0; }
+.machine-ui.machine-page-5 h3 { font-size:16px; color:#d4e0eb; margin:6px 0 2px; }
+.machine-ui .summary-sub { color:#99b0c4; font-size:12px; margin:0 0 4px; }
+.machine-ui .summary-chart { flex:1; min-height:0; width:100%; background:#f0f4f8; border:0; padding:5px; box-sizing:border-box; }
+.machine-ui.machine-page-5 .mx { table-layout:fixed; width:100%; border-collapse:collapse; }
+.machine-ui.machine-page-5 .mx td,.machine-ui.machine-page-5 .mx th { font-size:12px; padding:6px 7px; border-color:#3b5166; }
+.machine-ui.machine-page-5 .mx th { color:#c3d3e0; background:#20374c; font-weight:500; }
+.machine-ui.machine-page-5 .mx th:first-child { width:13%; }
+.machine-ui.machine-page-5 .mx td { background:#172b3e; color:#afc3d6; }
+.machine-ui.machine-page-5 .mx td b { filter:brightness(1.5); }
+.machine-ui.machine-page-5 .mx .c1 { background:#24415b; color:#bfd7ef; }
+.machine-ui.machine-page-5 .mx .c2 { background:#342e4f; color:#d3c3ed; }
+.machine-ui.machine-page-5 .mx .c3 { background:#493929; color:#f0c89e; font-weight:500; }
+.machine-ui.machine-page-5 .mx .c0 { color:#8199ae; }
+.machine-ui.machine-page-5 .mx .gh td { background:#23384b; color:#b8cddd; font-size:11px; }
+.machine-ui .validation-footnote { margin-top:auto; padding:12px; background:#203449; border-left:2px solid #bda17c; border-radius:5px; font-size:12px; line-height:1.7; color:#abc0d3; }
+.machine-ui .validation-footnote b { color:#dfc39f; font-size:13px; }
+.machine-ui .validation-footnote p { margin:6px 0; }
+.machine-ui .validation-footnote > span { color:#d0deea; }

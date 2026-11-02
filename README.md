@@ -68,11 +68,15 @@ npm run check
 npm run preview
 ```
 
-`check` 會建置、檢查資源完整性並核對 FA8 數值。`preview` 只提供現有 `dist/`，不自動重建。`npm run build` 會輸出 `dist/index.html`、中文檔名副本、`platform_embed.html`、圖片與第三方授權。發佈／離線搬移時需要**整個 dist 資料夾**，不能只複製一個 HTML。第一次 `npm ci` 需要網路，網站執行不依賴 CDN。
+`check` 會建置、檢查資源完整性、核對 FA8 數值，並用獨立的臨時本機連接埠驗證預覽伺服器的 GET、HEAD、快取驗證與錯誤回應；不占用開發中的 4173 連接埠。`preview` 只提供現有 `dist/`，不自動重建，支援 ETag 重新驗證以避免重傳未變更的檔案；`dev` 仍不快取。這些設定適用於本機伺服器，GitHub Pages 的快取由託管服務管理。`npm run build` 會輸出 `dist/index.html`、中文檔名副本、`platform_embed.html`、圖片與第三方授權。發佈／離線搬移時需要**整個 dist 資料夾**，不能只複製一個 HTML。第一次 `npm ci` 需要網路，網站執行不依賴 CDN。
 
 GitHub Pages 設為 **Settings → Pages → Source: GitHub Actions**，workflow 在 `.github/workflows/pages.yml`。僅將 dist 上傳為 Pages artifact；repo 的文件、測試及建置來源不會被當作靜態網站目錄，但因 repo 公開仍可直接在 GitHub 閱讀。Pages 的標準流程見 [GitHub 官方文件](https://docs.github.com/en/pages/getting-started-with-github-pages/using-custom-workflows-with-github-pages)。
 
 ## 操作與限制
+
+「2-8 實機驗證」五頁共用設備視覺風格。機台與微觀頁提供自動畫質、高清、流暢模式；自動模式在操作時降低像素負擔，停下後恢復細節。機台頁可放大檢視，動畫可拖曳時間軸或直接跳到各階段。陣列機台使用獨立的 8 通道、127 µm 設定，不會改動其他章節的選擇。`scripts/verify-machine.mjs` 核對光束網格與原始 Three.js 形狀一致，並驗證陣列設定隔離。
+
+2-8 的機台與時間軸在靜止或離頁後停止排程，操作後會恢復動畫、相機阻尼與高清畫面。相同材質的剛性零件在原機構內合併繪製，動態線材保留 90×8 網格並重用緩衝區；解析度、材質、陰影尺寸與物理設定沿用原值。機台測試另核對線材頂點／法線／UV 完全一致、合併模型的三角形屬性及隱藏／喚醒排程。開發時可用 `?performance=1#v2`，在 iframe 的 `#machine-performance` 讀取每秒計算／繪圖／陰影次數、CPU 提交時間與畫布像素；正常報告不建立量測計時器。CPU 時間不是 GPU 時間，背景分頁的幀距也不能當成前景 FPS。
 
 上方分頁／底部圓點跳頁，← → 換頁，Esc 回架構圖，F 全螢幕。固定 1600×900 舞台等比縮放，建議電腦或平板橫向；手機可瀏覽但控制項較小。新裝置建置通過不等於該裝置的 WebGL／字型已驗證，請用其瀏覽器實際開啟一遍。
 

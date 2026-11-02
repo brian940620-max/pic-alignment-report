@@ -3,12 +3,14 @@
   "private": true,
   "version": "1.0.0",
   "type": "module",
-  "engines": { "node": ">=22" },
+  "engines": {
+    "node": ">=22"
+  },
   "scripts": {
     "build": "node build.mjs",
     "dev": "node scripts/serve.mjs --watch",
     "preview": "node scripts/serve.mjs",
-    "test": "node scripts/verify.mjs && node check_fa8.mjs",
+    "test": "node scripts/verify.mjs && node check_fa8.mjs && node scripts/verify-performance.mjs && node scripts/verify-server.mjs && node scripts/verify-machine.mjs",
     "check": "npm run build && npm test"
   },
   "dependencies": {

@@ -1,12 +1,20 @@
 // 簡報嵌入版的「寫實化」收尾（build.mjs 只在產生 platform_embed.html 時附加）。
-// 只動光照、環境反射、地面、陰影與後製；不動任何幾何、父子階層、旋轉中心與運動。
+// 共用光照、環境反射、陰影與後製；第一頁另啟用表面細節與自適應畫質，保持機構與旋轉中心。
 import {EffectComposer} from 'three/addons/postprocessing/EffectComposer.js';
 import {RenderPass} from 'three/addons/postprocessing/RenderPass.js';
 import {OutputPass} from 'three/addons/postprocessing/OutputPass.js';
 import {ShaderPass} from 'three/addons/postprocessing/ShaderPass.js';
 import {Pass} from 'three/addons/postprocessing/Pass.js';
+// This file is appended to the source module with the repository as resolveDir.
+import {finishTour} from './src/platform-tour.js';
+import {machineProfile} from './src/machine-profile.js';
+import {demandLoop} from './src/demand-loop.js';
+import {batchRigidParts} from './src/rigid-batches.js';
 
 let platformHighlightStrength = .12;
+const detailedTour = new URLSearchParams(location.search).get('detail') === 'tour';
+const platformProfile = machineProfile(new URLSearchParams(location.search).get('performance') === '1', renderer.domElement);
+if (platformProfile) renderer.info.autoReset = false;
 {
   VIEWS.all = [[1480, 1150, 1620], [400, 140, -200]];
 
@@ -131,12 +139,34 @@ let platformHighlightStrength = .12;
 
   // ---- 後製：多重取樣 HDR → 原有 SSAO（接觸陰影）→ 暗角與抖色 → 色調映射 ----
   // 顯示卡較弱時自動降解析度：連續慢幀（35–200 ms；更長的是分頁在背景被節流，不算）就把上限往下調
+  if (detailedTour) {
+    rebuildCables = finishTour({ scene, renderer, controls, floor, sun, parts, pickables, views: VIEWS, cables: cableMeshes });
+    const batched = batchRigidParts(leaf, pickables, new Set(cableMeshes.map(c => c.m)));
+    if (platformProfile) platformProfile.batchedMeshes = batched;
+    // User input takes precedence over a preset camera flight.
+    controls.addEventListener('start', () => { fly = null; });
+    // Hover should not raycast every hidden alternative hardware configuration.
+    for (const m of pickables) if (m.geometry && !m.geometry.boundingBox) m.geometry.computeBoundingBox();
+    pick = function (e) {
+      const r = renderer.domElement.getBoundingClientRect();
+      mouse.set(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
+      ray.setFromCamera(mouse, camera);
+      const candidates = pickables.filter(m => visibleChain(m) && !(iso && selected !== null && m.userData.pid !== selected));
+      const hit = ray.intersectObjects(candidates, false)[0];
+      return hit ? hit.object.userData.pid : null;
+    };
+  }
   let prLimit = 1.5, slow = 0, lastFrame = 0;
-  const prCap = () => Math.min(prLimit, renderer.getPixelRatio());
+  let quality = 'auto', interacting = false, motionPR = 1.25, tourPR = 1.25, lastMotion = 0, requestedPR = renderer.getPixelRatio();
+  let qualityDirty = true;
+  const prCap = () => detailedTour ? tourPR : Math.min(prLimit, requestedPR);
   const watchFrame = (now) => {
     const dt = now - lastFrame; lastFrame = now;
     if (dt > 35 && dt < 200) slow++; else if (dt <= 35) slow = Math.max(0, slow - 1);
-    if (slow > 45 && prLimit > 1) { prLimit = Math.max(1, prLimit - .5); slow = 0; syncComposer(); }
+    if (slow > 45) {
+      if (detailedTour) { motionPR = Math.max(.8, motionPR - .15); slow = 0; }
+      else if (prLimit > 1) { prLimit = Math.max(1, prLimit - .5); slow = 0; syncComposer(); }
+    }
   };
   const target = new THREE.WebGLRenderTarget(1, 1, {type: THREE.HalfFloatType, samples: 4});
   const composer = new EffectComposer(renderer, target);
@@ -153,45 +183,74 @@ let platformHighlightStrength = .12;
   }
   composer.addPass(new ContactShade());
   const grade = new ShaderPass({
-    uniforms: {tDiffuse: {value: null}, uVig: {value: .3}, uTime: {value: .37}},
+    uniforms: {tDiffuse: {value: null}, uVig: {value: detailedTour ? .12 : .3}, uTime: {value: .37}, uGrain: {value: detailedTour ? .0008 : .004}},
     vertexShader: 'varying vec2 vUv;void main(){vUv=uv;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}',
-    fragmentShader: `uniform sampler2D tDiffuse;uniform float uVig,uTime;varying vec2 vUv;
+    fragmentShader: `uniform sampler2D tDiffuse;uniform float uVig,uTime,uGrain;varying vec2 vUv;
       float h(vec2 p){return fract(sin(dot(p,vec2(12.9898,78.233))+uTime)*43758.5453);}
       void main(){vec4 c=texture2D(tDiffuse,vUv);vec2 d=(vUv-.5)*vec2(1.,.82);
-        c.rgb*=mix(1.-uVig,1.,smoothstep(.78,.18,length(d)));
-        c.rgb+=(h(gl_FragCoord.xy)-.5)*.004;gl_FragColor=c;}`,
+        c.rgb*=mix(1.,1.-uVig,smoothstep(.18,.78,length(d)));
+        c.rgb+=(h(gl_FragCoord.xy)-.5)*uGrain;gl_FragColor=c;}`,
   });
   composer.addPass(grade);
   composer.addPass(new OutputPass());
+  let viewW = 0, viewH = 0, bufferW = 0, bufferH = 0, aoW = 0, aoH = 0;
+  // Give the composer physical dimensions once. setPixelRatio + setSize used to
+  // resize and dispose every target twice, even when deckscale hadn't changed.
+  composer.setPixelRatio(1);
   const syncComposer = () => {
-    const w = Math.max(1, stage.clientWidth), h = Math.max(1, stage.clientHeight);
-    composer.setPixelRatio(prCap()); composer.setSize(w, h);
+    if (viewW < 2 || viewH < 2) return;
+    const pr = prCap(), w = Math.floor(viewW * pr), h = Math.floor(viewH * pr);
+    if (w !== bufferW || h !== bufferH) {
+      renderer.setDrawingBufferSize(viewW, viewH, pr);
+      composer.setSize(w, h); bufferW = w; bufferH = h;
+    }
+    const aw = Math.max(1, Math.round(viewW * (detailedTour ? Math.min(1.25, tourPR) : .8)));
+    const ah = Math.max(1, Math.round(viewH * (detailedTour ? Math.min(1.25, tourPR) : .8)));
+    if (aw !== aoW || ah !== aoH) { surfaceAO.setSize(aw, ah); aoW = aw; aoH = ah; }
   };
   const baseResize = resize;
-  resize = function () { baseResize(); syncComposer(); };
-  addEventListener('resize', syncComposer);
-  syncComposer();
-  // 畫布本身最多 2 倍（簡報送來的 dpr 可到 2.5，後製只算到 1.5 倍，畫布再大只是白費填色）
-  const setPR = renderer.setPixelRatio.bind(renderer);
-  renderer.setPixelRatio = v => setPR(Math.min(2, v));
-  renderer.setPixelRatio(renderer.getPixelRatio());
+  removeEventListener('resize', baseResize);
+  resize = function () {
+    const w = stage.clientWidth, h = stage.clientHeight;
+    if (w < 2 || h < 2 || (w === viewW && h === viewH)) return;
+    viewW = w; viewH = h;
+    renderer.domElement.style.width = w + 'px'; renderer.domElement.style.height = h + 'px';
+    labelR.setSize(w, h); camera.aspect = w / h; camera.updateProjectionMatrix();
+    qualityDirty = true; poke();
+  };
+  addEventListener('resize', resize);
+  // 詳細機台模式將畫布與後製同步為動態解析度。
+  renderer.setPixelRatio = v => { if (requestedPR !== v) { requestedPR = v; qualityDirty = true; poke(); } };
 
   // ---- 省效能：只在畫面真的會變時才畫 ----
   // 原本每一幀都重畫整個場景＋陰影＋SSAO＋後製，閒置時也一樣，而且簡報裡最多同時開三個機台 iframe。
   // 改成：iframe 不在畫面上就不畫；鏡頭、零件位置、透明度、發光有變，或剛收到簡報指令／滑鼠操作，才畫。
   // 陰影只跟零件位置有關（跟鏡頭無關），所以只在零件動的時候更新。
-  let active = true, lastEvent = performance.now(), lastSig = NaN, lastCam = NaN, lastDraw = 0;
-  const poke = () => { lastEvent = performance.now(); };
+  let active = true, visualDirty = true, scheduler, cableRevision = 0, lastSig = NaN, lastCam = NaN, lastDraw = 0;
+  const poke = () => { visualDirty = true; scheduler?.wake(); };
+  if (detailedTour) rebuildCables.onChange = () => { cableRevision++; renderer.shadowMap.needsUpdate = true; poke(); };
   // 同一個指令內容沒變（例如暫停時重送同一組 pose）就不算變化
   const lastMsg = new Map();
   addEventListener('message', e => {
     const d = e.data; if (!d || d.ns !== 'platform') return;
-    if (d.cmd === 'active') { active = !!d.on; if (active) poke(); return; }
-    const key = JSON.stringify(d); if (lastMsg.get(d.cmd) === key) return; lastMsg.set(d.cmd, key);
-    poke(); renderer.shadowMap.needsUpdate = true;
+    if (d.cmd === 'active') { active = !!d.on; loop.last = undefined; scheduler.setActive(active && !document.hidden); if (active) { resize(); poke(); } return; }
+    if (detailedTour && d.cmd === 'quality' && ['auto', 'high', 'fast'].includes(d.v)) { quality = d.v; qualityDirty = true; }
+    if (['pose', 'chpow', 'dpr', 'quality'].includes(d.cmd)) {
+      const key = JSON.stringify(d); if (lastMsg.get(d.cmd) === key) return; lastMsg.set(d.cmd, key);
+    } else if (['stop', 'demo', 'ang', 'preset', 'head'].includes(d.cmd)) { lastMsg.delete('pose'); lastMsg.delete('chpow'); }
+    poke(); if (!detailedTour || ['preset', 'head', 'hide'].includes(d.cmd)) renderer.shadowMap.needsUpdate = true;
   });
-  for (const ev of ['pointerdown', 'pointermove', 'wheel', 'pointerup']) renderer.domElement.addEventListener(ev, poke, {passive: true});
+  for (const ev of ['pointerdown', 'wheel', 'pointerup']) renderer.domElement.addEventListener(ev, poke, {passive: true});
+  controls.addEventListener('change', poke);
+  const basePaint = paint;
+  paint = function () { basePaint(); poke(); renderer.shadowMap.needsUpdate = true; };
+  if (detailedTour) {
+    controls.addEventListener('start', () => { interacting = true; poke(); });
+    controls.addEventListener('end', () => { interacting = false; poke(); });
+    renderer.domElement.addEventListener('pointerleave', poke, {passive: true});
+  }
   addEventListener('resize', poke);
+  document.addEventListener('visibilitychange', () => { loop.last = undefined; scheduler.setActive(active && !document.hidden); });
   renderer.shadowMap.autoUpdate = false; renderer.shadowMap.needsUpdate = true;
   const partSig = () => {
     let s = exT * 5 + glow.material.opacity + M.wg.emissiveIntensity;
@@ -200,29 +259,67 @@ let platformHighlightStrength = .12;
     for (const g of leaf) { const u = g.userData; s += u.ta * .37 + (u.pulse > 0 ? u.pulse : 0) * .53 + (g.visible ? .11 : 0); }
     return s;
   };
+  // Emissive pulses and selection do not require recomputing a 3072² shadow map.
+  const geometrySig = () => {
+    let s = exT + cableRevision * .013;
+    for (const k in M) { const o = M[k]; if (o?.isObject3D) { const p = o.position, r = o.rotation; s += p.x * 1.3 + p.y * 1.7 + p.z * 2.1 + r.x * 3.1 + r.y * 3.7 + r.z * 4.3; } }
+    for (const k in MOD) s += MOD[k].t * 7;
+    for (const g of leaf) s += g.userData.ta * .37 + (g.visible ? .11 : 0);
+    return s;
+  };
+  let lastGeometry = NaN;
   const camSig = () => { const e = camera.matrixWorld.elements; let s = camera.aspect * 9; for (let i = 0; i < 16; i++) s += e[i] * (i + 1); return s; };
   let drewThisFrame = false;
   // 第一次繪圖要編譯約 25 個著色器（實測卡住主執行緒約 0.4 s）。改成背景平行編譯，編好才開始畫
   let compiled = false;
   // 編好後先用 64×64 偷畫一張：後製、SSAO、陰影的著色器也在預載時編完（iframe 還藏著時也照做），真正換到這頁時就不會卡
   renderer.compileAsync(scene, camera).catch(() => {}).then(() => {
-    const hidden = stage.clientWidth < 2 || stage.clientHeight < 2;
-    if (hidden) { renderer.setSize(64, 64, false); composer.setSize(64, 64); }
+    // Compile the postprocessing once at thumbnail size; don't allocate a
+    // second full-size set of targets while the iframe is preloaded offscreen.
+    renderer.setDrawingBufferSize(64, 64, 1); composer.setSize(64, 64);
     renderer.shadowMap.needsUpdate = true; composer.render();
-    if (hidden) resize();
+    bufferW = bufferH = 0;
     compiled = true; poke(); renderer.shadowMap.needsUpdate = true;
   });
   renderSurfaces = function () {
     drewThisFrame = false;
-    if (!compiled || !active || stage.clientWidth < 2 || stage.clientHeight < 2) return;   // 換頁瞬間 iframe 尺寸為 0，畫了只會產生 GL 錯誤
+    if (!compiled || !active || viewW < 2 || viewH < 2) return;
     const now = performance.now(), ps = partSig(), cs = camSig();
-    const partsMoved = ps !== lastSig, busy = demo || ang || fly || TOUR.on || now - lastEvent < 400;
-    if (!partsMoved && cs === lastCam && !busy && now - lastDraw < 2000) return;
-    if (partsMoved) renderer.shadowMap.needsUpdate = true;
-    lastSig = ps; lastCam = cs; lastDraw = now; drewThisFrame = true;
-    watchFrame(now); composer.render();
+    const partsMoved = ps !== lastSig, cameraMoved = detailedTour ? !Number.isFinite(lastCam) || Math.abs(cs - lastCam) > .00001 : cs !== lastCam;
+    const busy = demo || ang || fly || visualDirty;
+    let resolutionChanged = false;
+    if (detailedTour) {
+      const gs = geometrySig();
+      if (cameraMoved || gs !== lastGeometry || demo || ang || fly || interacting) lastMotion = now;
+      // Supersample the settled view, with a pixel budget for large displays.
+      // Interaction automatically returns to the fast tier; idle quality always recovers.
+      const settled = now - lastMotion > 220;
+      const highPR = Math.min(2.25, Math.max(1.8, requestedPR * 1.5), Math.sqrt(5200000 / Math.max(1, viewW * viewH)));
+      const nextPR = quality === 'high' ? highPR : quality === 'fast' ? Math.min(1, requestedPR) : settled ? highPR : Math.min(motionPR, requestedPR);
+      if (Math.abs(nextPR - tourPR) > .01 || qualityDirty || !bufferW) { tourPR = nextPR; syncComposer(); qualityDirty = false; resolutionChanged = true; }
+      if (gs !== lastGeometry) renderer.shadowMap.needsUpdate = true;
+      lastGeometry = gs;
+    } else { syncComposer(); if (partsMoved) renderer.shadowMap.needsUpdate = true; }
+    if (!partsMoved && !cameraMoved && !busy && !resolutionChanged && (detailedTour || now - lastDraw < 2000)) return;
+    lastSig = ps; lastCam = cs; lastDraw = now; drewThisFrame = true; visualDirty = false;
+    if (!detailedTour || now - lastMotion < 220) watchFrame(now);
+    if (platformProfile) { renderer.info.reset(); platformProfile.renders++; if (renderer.shadowMap.needsUpdate) platformProfile.shadows++; }
+    composer.render();
+    if (platformProfile) platformProfile.drawCalls += renderer.info.render.calls;
   };
   // CSS 標籤也跟著：沒重畫就不用重排
   const labelRender = labelR.render.bind(labelR);
   labelR.render = (s, c) => { if (drewThisFrame) labelRender(s, c); };
+  scheduler = demandLoop((dt, now) => {
+    if (!compiled) return false;
+    const start = platformProfile ? performance.now() : 0;
+    loop(now);
+    if (platformProfile) { platformProfile.steps++; platformProfile.cpuMs += performance.now() - start; }
+    return !!(demo || ang || fly || Math.abs(exT - (explode ? 1 : 0)) > 1e-3 ||
+      Object.values(MOD).some(m => Math.abs(m.t - (m.on ? 1 : 0)) > 1e-3) ||
+      leaf.some(g => g.userData.pulse > 0 || g.userData.ta !== (g.userData.tv ? 1 : 0)) ||
+      now - lastMotion < 250);
+  });
+  new ResizeObserver(resize).observe(stage);
+  resize(); scheduler.setActive(!document.hidden);
 }

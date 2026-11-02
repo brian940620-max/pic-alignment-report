@@ -4,7 +4,8 @@
 // 模型 ../fa8.js（FA8_Lensed_PIC v1.0 移植，與 MATLAB 核對）；不放公式。
 import { h, slider, fitCanvas, loop, clamp, DEG } from '../ui.js';
 import { FA8, etaFA, peakFA, facetSpot } from '../fa8.js';
-import { jet } from '../field6.js';
+import { writeFieldPixel } from '../presentation-palette.js';
+import { frameTask } from '../render-task.js';
 
 const PK = peakFA(FA8), N = FA8.nCh, U = Array.from({ length: N }, (_, k) => (k - (N - 1) / 2) * FA8.pitch);
 const dBrel = (e) => 10 * Math.log10(Math.max(e / PK, 1e-12));
@@ -33,26 +34,50 @@ const pane = (c) => { c.style.position = 'absolute'; return h('div', { class: 'p
 
 function arraySlide(body) {
   const v = HOME.slice();
+  const req = frameTask(draw);
+  let modelKey = '', model;
+  const NG = 61, HW = 4;
+  const tiles = Array.from({ length: N }, () => {
+    const canvas = h('canvas', { width: NG, height: NG }), ctx = canvas.getContext('2d');
+    return { canvas, ctx, img: ctx.createImageData(NG, NG), xs: new Float64Array(NG), ys: new Float64Array(NG) };
+  });
   const cF = h('canvas'), cT = h('canvas'), cB = h('canvas');
-  const F = fitCanvas(cF, () => draw()), T = fitCanvas(cT, () => draw()), B = fitCanvas(cB, () => draw());
+  const F = fitCanvas(cF, req), T = fitCanvas(cT, req), B = fitCanvas(cB, req);
   const kpV = h('b'), kpS = h('span');
-  let pend = false; const req = () => { if (pend) return; pend = true; requestAnimationFrame(() => { pend = false; draw(); }); };
-  const stopDemo = () => { anim.stop(); bDemo.textContent = '▶ 滾轉示範'; bDemo.setAttribute('aria-pressed', 'false'); };
+  const stopDemo = () => { anim.stop(); tween.stop(); bDemo.textContent = '▶ 隨機六軸擾動'; bDemo.setAttribute('aria-pressed', 'false'); };
   const SL = AX.map(([label, min, max, step, unit, , digits], i) => slider({ label, min, max, step, value: v[i], unit, digits, onInput: (x) => { stopDemo(); v[i] = x; preBtns.forEach((b) => b.classList.remove('on')); req(); } }));
   const setPose = (p) => { p.forEach((x, i) => { v[i] = x; SL[i].set(x, true); }); req(); };
-  const preBtns = PRESETS.map(([t, p]) => h('button', { type: 'button', onclick: (e) => { stopDemo(); setPose(p); preBtns.forEach((b) => b.classList.toggle('on', b === e.currentTarget)); } }, t));
-  const bHome = h('button', { type: 'button', class: 'btn ghost', onclick: () => { stopDemo(); setPose(HOME); preBtns.forEach((b) => b.classList.remove('on')); } }, '歸零');
-  let phase = 0;
-  const anim = loop((dt) => { phase += dt; v[5] = 0.15 * Math.sin(phase * Math.PI / 3); SL[5].set(v[5], true); draw(); });
+  let from = HOME, to = HOME, elapsed = 0;
+  const tween = loop(dt => { elapsed += dt; const t = Math.min(1, elapsed / .45), e = t * t * (3 - 2 * t); setPose(to.map((x, i) => from[i] + (x - from[i]) * e)); req.flush(); if (t === 1) tween.stop(); });
+  const moveTo = p => { if (matchMedia('(prefers-reduced-motion: reduce)').matches) return setPose(p); from = v.slice(); to = p; elapsed = 0; tween.start(); };
+  const preBtns = PRESETS.map(([t, p]) => h('button', { type: 'button', onclick: (e) => { stopDemo(); moveTo(p); preBtns.forEach((b) => b.classList.toggle('on', b === e.currentTarget)); } }, t));
+  const bHome = h('button', { type: 'button', class: 'btn ghost', onclick: () => { stopDemo(); moveTo(HOME); preBtns.forEach((b) => b.classList.remove('on')); } }, '歸零');
+  // 每段產生六軸獨立的隨機目標，以平滑插值展示剛體與八通道同步反應。
+  // 範圍為展示用擾動，不代表實機精度或控制器軌跡。
+  const randomPose = () => [1.1, .9, 5, .7, .45, .12].map((amp, i) => HOME[i] + (Math.random() * 2 - 1) * amp);
+  let demoFrom = v.slice(), demoTo = randomPose(), demoTime = 0;
+  const anim = loop((dt) => {
+    demoTime += dt;
+    const t = Math.min(1, demoTime / 2.8), e = t * t * t * (10 - 15 * t + 6 * t * t);
+    demoTo.forEach((x, i) => { v[i] = demoFrom[i] + (x - demoFrom[i]) * e; SL[i].set(v[i], true); });
+    req.flush();
+    if (t === 1) { demoFrom = v.slice(); demoTo = randomPose(); demoTime = 0; }
+  });
   const bDemo = h('button', { type: 'button', 'aria-pressed': 'false', onclick: () => {
     if (anim.running) return stopDemo();
-    setPose(HOME); preBtns.forEach((b) => b.classList.remove('on')); phase = 0;
+    tween.stop();
+    demoFrom = v.slice(); demoTo = randomPose(); demoTime = 0; preBtns.forEach((b) => b.classList.remove('on'));
     bDemo.textContent = 'Ⅱ 暫停示範'; bDemo.setAttribute('aria-pressed', 'true'); anim.start();
-  } }, '▶ 滾轉示範');
+  } }, '▶ 隨機六軸擾動');
 
   function draw() {
-    const pose = v.map((x, i) => x * AX[i][5]), C = etaFA(pose), db = C.map((c) => dBrel(c.e)), worst = Math.min(...db), kw = db.indexOf(worst);
-    const spots = C.map((c) => facetSpot(c, pose));
+    if (!F.w && !T.w && !B.w) return;
+    const nextKey = v.join(':');
+    if (modelKey !== nextKey) {
+      const pose = v.map((x, i) => x * AX[i][5]), C = etaFA(pose), db = C.map(c => dBrel(c.e)), worst = Math.min(...db);
+      model = { db, worst, kw: db.indexOf(worst), spots: C.map(c => facetSpot(c, pose)) }; modelKey = nextKey;
+    }
+    const { db, worst, kw, spots } = model;
     // ---- PIC 端面正視：耦合器（藍）與整支 FA 的光斑位置（橘，偏移放大 MAG 倍）----
     { const { ctx, w, h: H } = F; if (w) {
       ctx.clearRect(0, 0, w, H);
@@ -83,13 +108,23 @@ function arraySlide(body) {
     // ---- 8 個通道的端面光強度（±4 µm），白虛線＝晶片模場 ----
     { const { ctx, w, h: H } = T; if (w) {
       ctx.clearRect(0, 0, w, H);
-      const gap = 8, s = Math.min((w - gap * (N - 1)) / N, H - 24), x0 = (w - (s * N + gap * (N - 1))) / 2, HW = 4, NG = 61;
+      const gap = 8, s = Math.min((w - gap * (N - 1)) / N, H - 24), x0 = (w - (s * N + gap * (N - 1))) / 2;
       spots.forEach((q, k) => {
-        const tx = x0 + k * (s + gap), img = ctx.createImageData(NG, NG);
-        for (let i = 0; i < NG; i++) for (let j = 0; j < NG; j++) { const x = -HW + (2 * HW * j) / (NG - 1), y = HW - (2 * HW * i) / (NG - 1);
-          const I = q.I0 * Math.exp((-2 * ((x - q.cx) ** 2 + (y - q.cy) ** 2)) / q.w ** 2), [r, g, b] = jet(I); img.data.set([r * 255, g * 255, b * 255, 255], (i * NG + j) * 4); }
-        const oc = document.createElement('canvas'); oc.width = oc.height = NG; oc.getContext('2d').putImageData(img, 0, 0);
-        ctx.imageSmoothingEnabled = true; ctx.drawImage(oc, tx, 0, s, s);
+        const tx = x0 + k * (s + gap), tile = tiles[k], { img, xs, ys } = tile;
+        const key = `${q.cx}:${q.cy}:${q.w}:${q.I0}`;
+        if (tile.key !== key) {
+          // Gaussian separability avoids thousands of exp calls per channel/frame.
+          for (let j = 0; j < NG; j++) {
+            const x = -HW + 2 * HW * j / (NG - 1), y = HW - 2 * HW * j / (NG - 1);
+            xs[j] = Math.exp(-2 * (x - q.cx) ** 2 / q.w ** 2); ys[j] = Math.exp(-2 * (y - q.cy) ** 2 / q.w ** 2);
+          }
+          for (let i = 0; i < NG; i++) for (let j = 0; j < NG; j++) {
+            writeFieldPixel(img.data, (i * NG + j) * 4, q.I0 * xs[j] * ys[i]);
+          }
+          tile.ctx.putImageData(img, 0, 0);
+          tile.key = key;
+        }
+        ctx.imageSmoothingEnabled = true; ctx.drawImage(tile.canvas, tx, 0, s, s);
         ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.6; ctx.setLineDash([4, 3]); ctx.beginPath(); ctx.ellipse(tx + s / 2, s / 2, (FA8.wChip[0] / (2 * HW)) * s, (FA8.wChip[1] / (2 * HW)) * s, 0, 0, 7); ctx.stroke(); ctx.setLineDash([]);
         ctx.strokeStyle = k === kw && worst < -0.05 ? '#fff' : 'rgba(140,170,230,.35)'; ctx.lineWidth = k === kw && worst < -0.05 ? 2.5 : 1; ctx.strokeRect(tx, 0, s, s);
         ctx.fillStyle = colDb(db[k]); ctx.font = '700 13.5px system-ui'; ctx.textAlign = 'center'; ctx.textBaseline = 'top'; ctx.fillText(`${db[k].toFixed(2)} dB`, tx + s / 2, s + 5);
@@ -119,11 +154,10 @@ function arraySlide(body) {
       h('div', { class: 'card dark kp' }, h('span', null, '陣列最差通道'), kpV, kpS),
       h('div', { class: 'card dark fill', style: { padding: '6px 8px', display: 'flex', flexDirection: 'column' } }, h('div', { class: 'k-h' }, '8 個通道的損耗'), pane(cB)),
       h('div', { class: 'card dark take' }, '滾轉時，外側通道偏最多'))));
-  body.append(h('div', { style: { fontSize: '12px', color: '#93a6c6' } }, '理想 FA 模擬 · 損耗相對標稱對準值 · 工作距離 14 µm 為假設'));
   body.prepend(h('style', null, CSS));
   body.closest('.slide').classList.add('sp21a');
   draw();
-  return { show() { F.apply(); T.apply(); B.apply(); draw(); }, hide() { stopDemo(); } };
+  return { show() { F.apply(); T.apply(); B.apply(); req(); }, hide() { stopDemo(); req.cancel(); } };
 }
 
 export function mount(sec) {

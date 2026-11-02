@@ -57,7 +57,7 @@ void main(){
   float facing = abs(dot(normalize(vN), normalize(vV)));
   float core = pow(facing, 2.2);
   float wave = 1.0 - uPulse + uPulse * (0.5 + 0.5 * sin(vX * 0.55 - uT * 7.0));
-  float edge = smoothstep(uFront, uFront - 4.0, vX);
+  float edge = 1.0 - smoothstep(uFront - 4.0, uFront, vX);
   gl_FragColor = vec4(uColor * (uGain * vI * core * wave * edge), 1.0);
 }`;
 
@@ -107,8 +107,8 @@ function lathe(profile, mat, seg = 64) {
 }
 
 export class Couple3D {
-  constructor(holder, { caseId = 'lensed', auto = false, onCase, shift = 0, layers = true, hq = false } = {}) {
-    this.holder = holder; this.auto = auto; this.onCase = onCase; this.shift = shift; this.layers = layers; this.hq = hq;
+  constructor(holder, { caseId = 'lensed', auto = false, onCase, shift = 0, layers = true, hq = false, concise = false } = {}) {
+    this.holder = holder; this.auto = auto; this.onCase = onCase; this.shift = shift; this.layers = layers; this.hq = hq; this.concise = concise;
     const r = (this.renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' }));
     r.toneMapping = THREE.ACESFilmicToneMapping; r.toneMappingExposure = 0.95;
     holder.append(r.domElement);
@@ -173,6 +173,7 @@ export class Couple3D {
     const glass = this.hq
       ? new THREE.MeshPhysicalMaterial({ color: 0xd6e8ff, metalness: 0, roughness: 0.04, transmission: 1, thickness: 3, ior: 1.45, attenuationColor: new THREE.Color(0x8fb8ff), attenuationDistance: 40, specularIntensity: 1, clearcoat: 1, clearcoatRoughness: 0.05, envMapIntensity: 1.1, transparent: true, opacity: 0.55, depthWrite: false })
       : new THREE.MeshPhysicalMaterial({ color: 0x6f9bd6, metalness: 0, roughness: 0.12, transparent: true, opacity: 0.16, clearcoat: 0.4, envMapIntensity: 0.25, side: THREE.DoubleSide, depthWrite: false });
+    if (this.concise) { glass.opacity = .26; glass.envMapIntensity = .55; }
     const lensMat = new THREE.MeshPhysicalMaterial({ color: 0xd9b87a, metalness: 0, roughness: 0.1, transparent: true, opacity: 0.32, clearcoat: 0.5, envMapIntensity: 0.3, side: THREE.DoubleSide, depthWrite: false, emissive: 0x6b3a00, emissiveIntensity: 0.25 });
     const metal = new THREE.MeshStandardMaterial({ color: 0x9aa6b8, metalness: 0.85, roughness: 0.28 });
     const dark = new THREE.MeshStandardMaterial({ color: 0x1b2230, metalness: 0.6, roughness: 0.45 });
@@ -269,13 +270,18 @@ export class Couple3D {
       this.layerLbl.push(this.label(LAYER_NAMES[n - 1], 'layer' + (on ? ' on' : ''), V(x, [175, 135, 95][n - 1])));
     }
     // ---- 標籤 ----
+    if (this.concise) {
+      this.label('透鏡', 'lens', lensPos);
+      this.label('PIC', 'chip', V(c.zc + 250, 90));
+    } else {
     this.label(id === 'lensed' ? '透鏡光纖' : '一般光纖（平切）', 'dim', V(this.layers ? -200 : -520, 90));
     if (lensPos) this.label('透鏡：' + c.lensName, 'lens', lensPos);
     this.label(`光腰 ≈ ${(2 * W_SSC).toFixed(0)} µm`, 'waist', V(c.zWaist, -34));
     this.label('PIC 晶片：SSC → 波導', 'chip', V(c.zc + (this.layers ? 180 : 330), 60));
+    }
 
     // ---- 鏡頭 ----
-    const dist = (c.zc + 640) * S * (this.layers ? 1.3 : 0.95), cx = c.zc * 0.5 * S - this.shift * dist;
+    const dist = (c.zc + 640) * S * (this.layers || this.concise ? 1.3 : 0.95), cx = c.zc * 0.5 * S - this.shift * dist;
     this.home = { pos: new THREE.Vector3(cx - dist * 0.22, dist * 0.36, dist * 0.92), tgt: new THREE.Vector3(cx, -1.5, 0) };
     if (instant) { this.camera.position.copy(this.home.pos); this.controls.target.copy(this.home.tgt); }
     else this.flyTo(this.home.pos, this.home.tgt);
@@ -330,12 +336,13 @@ export class Couple3D {
 
   flyTo(p, t, ms = 1100) { this.fly = { p0: this.camera.position.clone(), t0: this.controls.target.clone(), p1: p.clone(), t1: t.clone(), s: performance.now(), ms }; }
   // 光從光纖裡出發、一路走進晶片
-  replay() { this.front = -900 * 0.75 * S; this.wgMat.emissiveIntensity = 0.15; }
+  replay() { this.cycleTime = 0; this.front = -900 * 0.75 * S; this.wgMat.emissiveIntensity = 0.15; }
 
   resize() {
     const w = this.holder.clientWidth, hgt = this.holder.clientHeight;
     if (w < 2 || hgt < 2) return;
     const dpr = Math.min(2, (window.devicePixelRatio || 1) * (window.__deckScale || 1));
+    const sizeKey = `${w}:${hgt}:${dpr}`; if (this.sizeKey === sizeKey) return; this.sizeKey = sizeKey;
     this.renderer.setPixelRatio(dpr); this.renderer.setSize(w, hgt, false);
     this.renderer.domElement.style.width = w + 'px'; this.renderer.domElement.style.height = hgt + 'px';
     this.composer.setPixelRatio(dpr); this.composer.setSize(w, hgt);
@@ -344,6 +351,10 @@ export class Couple3D {
   }
 
   frame(dt) {
+    const moving = !this.paused;
+    if (!moving) dt = 0;
+    this.cycleTime += dt;
+    if (this.repeatSeconds && this.cycleTime >= this.repeatSeconds) this.replay();
     this.t += dt;
     const c = this.c, end = (c.zc + 520) * S;
     if (this.front < end) this.front += dt * (this.front < 0 ? 70 : 32);
@@ -355,10 +366,10 @@ export class Couple3D {
       const k = Math.min((performance.now() - this.fly.s) / this.fly.ms, 1), e = k < 0.5 ? 4 * k * k * k : 1 - Math.pow(-2 * k + 2, 3) / 2;
       this.camera.position.lerpVectors(this.fly.p0, this.fly.p1, e); this.controls.target.lerpVectors(this.fly.t0, this.fly.t1, e);
       if (k >= 1) { this.fly = null; this.swayT = 0; }
-    } else if (!this.userCam) {
+    } else if (!this.userCam && moving && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
       // 緩慢擺動，讓立體感出來（從 0 開始，接續飛行結束的位置）
       this.swayT = (this.swayT || 0) + dt;
-      const a = Math.sin(this.swayT * 0.25) * 0.35, tg = this.home.tgt, p = this.home.pos.clone().sub(tg);
+      const a = Math.sin(this.swayT * 0.25) * 0.16, tg = this.home.tgt, p = this.home.pos.clone().sub(tg);
       const r = Math.hypot(p.x - 0, p.z), ang0 = Math.atan2(p.x, p.z);
       this.camera.position.set(tg.x + r * Math.sin(ang0 + a), tg.y + p.y, tg.z + r * Math.cos(ang0 + a));
       this.controls.target.copy(tg);

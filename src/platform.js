@@ -10,9 +10,12 @@ export const STAGE_PARTS = {
 };
 
 export class Platform {
-  constructor(holder) {
-    this.queue = []; this.ready = false;
-    this.frame = h('iframe', { class: 'plat', title: '對位平台 3D', src: 'platform_embed.html', style: { width: '100%', height: '100%', border: '0', display: 'block', background: '#15171a' } });
+  constructor(holder, { tour = false } = {}) {
+    this.queue = []; this.ready = false; this.lastState = new Map();
+    const params = new URLSearchParams();
+    if (tour) params.set('detail', 'tour');
+    if (new URLSearchParams(location.search).get('performance') === '1') params.set('performance', '1');
+    this.frame = h('iframe', { class: 'plat', title: '對位平台 3D', src: `platform_embed.html?${params}`, style: { width: '100%', height: '100%', border: '0', display: 'block', background: '#15171a' } });
     holder.append(this.frame);
     this.onMsg = (e) => {
       const d = e.data;
@@ -26,8 +29,19 @@ export class Platform {
     this.io.observe(this.frame);
   }
   post(m) { this.frame.contentWindow && this.frame.contentWindow.postMessage({ ns: 'platform', ...m }, '*'); }
-  send(cmd, extra = {}) { const m = { cmd, ...extra }; if (this.ready) this.post(m); else this.queue.push(m); }
-  dpr() { if (this.ready) this.post({ cmd: 'dpr', v: Math.min(2.5, (window.devicePixelRatio || 1) * (window.__deckScale || 1)) }); }
+  send(cmd, extra = {}) {
+    const m = { cmd, ...extra };
+    if (['stop', 'demo', 'ang', 'head', 'preset'].includes(cmd)) { this.lastState.delete('pose'); this.lastState.delete('chpow'); }
+    // Only idempotent streaming values are deduplicated. Camera flights and
+    // one-shot actions must still run when the same button is pressed again.
+    if (['pose', 'chpow', 'active', 'quality', 'dpr'].includes(cmd)) {
+      const key = JSON.stringify(extra);
+      if (this.lastState.get(cmd) === key) return;
+      this.lastState.set(cmd, key);
+    }
+    if (this.ready) this.post(m); else this.queue.push(m);
+  }
+  dpr() { if (this.ready) this.send('dpr', { v: Math.min(2.5, (window.devicePixelRatio || 1) * (window.__deckScale || 1)) }); }
   view(v) { this.send('view', { v }); }
   stage(n) { const s = STAGE_PARTS[n]; this.send('hl', s ? { ids: s.ids, color: s.color } : { ids: [] }); }
 }

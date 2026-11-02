@@ -1,0 +1,75 @@
+/* Chapter 2-2: fixed-stage camera demonstrations. */
+.camera-ui { padding:18px 28px 12px; }
+.camera-ui .stitle { align-items:center; min-height:42px; margin-bottom:16px; }
+.camera-ui .stitle .kick { background:#f3bd821a; color:#ffd6a7; border:1px solid #f3bd8250; box-shadow:none; padding:4px 10px; }
+.camera-ui .sbody { gap:16px; }
+.camera-ui .col { gap:16px; min-width:0; min-height:0; }
+.camera-ui .grid { gap:16px; }
+.camera-ui .card.dark { background:linear-gradient(145deg,#132338,#0d1829); border:1px solid #2c4059; border-radius:16px; padding:18px; box-shadow:none; }
+.camera-ui .btn, .camera-ui .btn.ghost { background:#1c344e; border:1px solid #415a76; color:#e4eefb; box-shadow:none; padding:8px 12px; font-size:14px; }
+.camera-ui .btn:hover { background:#294b69; }
+.camera-ui button:focus-visible,.camera-ui input:focus-visible { outline:2px solid #ffd6a7; outline-offset:3px; }
+.camera-ui .seg { border-color:#415a76; border-radius:9px; }
+.camera-ui .seg button { background:#14283e; color:#d5e3f4; border-color:#415a76; padding:8px 12px; }
+.camera-ui .seg button.on { background:#f3c793; color:#172233; }
+.camera-ui .sl-val { color:#ffd29a; }
+.camera-ui input[type=range] { accent-color:#f3bd82; }
+.camera-ui .k-h { font-size:18px; margin:0 0 8px; }
+.camera-ui .src { line-height:1.65; font-size:12px; color:#a3b7d0; }
+.camera-ui .eyebrow { font-size:12px; color:#91aeca; letter-spacing:1.4px; margin-bottom:8px; }
+.camera-layout { display:grid; grid-template-columns:minmax(0,1.65fr) minmax(0,1fr); gap:20px; }
+.camera-ui .cam { border:1px solid #32445d; border-radius:16px; }
+.camera-ui .cam-hud { font-size:13px; top:14px; }
+.camera-ui .cam-stat { font-size:14px; top:14px; }
+.camera-detail { height:180px; flex:none; border:1px solid #32445d; border-radius:14px; overflow:hidden; }
+.camera-controls > .card:first-child { gap:10px; }
+.camera-ui .rd { grid-template-columns:1fr auto; gap:7px 16px; border-top:1px solid #2c4059; padding-top:12px; font-size:14px; }
+.camera-profile { height:140px; flex:none; }
+.camera-takeaway { padding:16px 18px; background:#162839; border-left:3px solid #f3bd82; border-radius:0 12px 12px 0; font-size:15px; color:#bed0e5; line-height:1.65; }
+.camera-takeaway b { color:#ffd6a7; font-size:17px; }
+.camera-takeaway p { margin:7px 0; }
+.camera-takeaway span { font-size:13px; color:#a6bbd2; }
+.camera-ui .pipe { gap:12px; padding:3px 0 8px; }
+.camera-ui .pipe > div { flex:1; border-color:#36506c; background:#13283b; padding:12px 16px; font-size:14px; line-height:1.6; border-radius:12px; }
+.camera-ui .pipe > div b { font-size:16px; }
+.camera-compare .big2 { font-size:48px; margin-top:8px; }
+.camera-compare .k-ul { list-style:none; padding:0; font-size:15px; line-height:1.7; }
+.camera-compare .k-ul li+li { border-top:1px solid #2c4059; margin-top:10px; padding-top:10px; }
+.camera-compare .k-ul b { display:block; }
+.final-layout { display:grid; grid-template-columns:280px minmax(0,1fr) 390px; gap:18px; }
+.camera-ui .ver { flex-direction:column; gap:10px; }
+.camera-ui .ver button { text-align:left; padding:14px 12px; border-color:#36506c; background:#14283e; border-radius:10px; font-size:14px; min-height:50px; }
+.camera-ui .ver button.on { background:#f3c793; color:#172233; }
+.camera-ui .ver button.fin.on { background:#94d6b1; }
+.final-note { margin-top:6px; border-top:1px solid #36506c; padding-top:16px; line-height:1.8; color:#bed0e5; }
+.final-summary { display:flex; align-items:center; justify-content:space-between; gap:16px; min-height:116px; }
+.final-summary .big2 { font-size:54px; flex:none; }
+.final-results p { margin:8px 0 14px; font-size:15px; line-height:1.8; color:#bed0e5; }
+.camera-ui table.p95 { margin-top:14px; font-size:14px; }
+.camera-ui table.p95 td,.camera-ui table.p95 th { padding:12px 5px; }
+.camera-ui table.p95 tr:last-child { background:#ffffff05; }
+.result-badge { background:#93d6b015; color:#94d6b1; border:1px solid #94d6b140; padding:10px 12px; border-radius:9px; margin:12px 0; font-weight:700; }
+
+.camera-ui.camera-optics .rd { grid-template-columns:1fr auto 1fr auto; gap:8px 12px; font-size:12px; }
+.camera-optics .camera-controls > .card:first-child { flex:none; gap:6px; }
+.camera-optics .camera-profile { flex:1; min-height:110px; }
+.camera-ui .card.dark .seg button.on { background:#f3c793; color:#172233; }
+
+
+.camera-ui .camera-detail { display:grid; grid-template-columns:1fr 1fr; gap:14px; height:218px; border:0; border-radius:0; overflow:hidden; }
+.camera-crop { display:flex; flex-direction:column; min-width:0; min-height:0; margin:0; background:#080f1b; border:1px solid #32445d; border-radius:14px; overflow:hidden; }
+.camera-crop figcaption { padding:8px 14px; color:#b7d0e8; font-size:14px; flex:none; }
+.camera-crop:last-child figcaption { color:#ffd29a; }
+.camera-crop-canvas { position:relative; flex:1; min-height:0; }
+.camera-crop-canvas canvas { position:absolute; inset:0; width:100%; height:100%; display:block; }
+.camera-optics .camera-optical-toolbar { display:flex; justify-content:space-between; gap:12px; }
+.camera-optics .camera-optical-toolbar .seg button { font-size:13px; padding:7px 11px; }
+.camera-optics .camera-effect-note { color:#adbdce; font-size:12px; line-height:1.5; }
+.camera-optics .camera-controls > .card:first-child { padding:14px 16px; }
+.camera-optics .camera-controls .slider { margin:2px 0; }
+.camera-optics .camera-controls input[type=range] { margin:6px 0; }
+.camera-optics .camera-focus-actions { gap:8px; flex-wrap:nowrap; }
+.camera-optics .camera-focus-actions .btn { font-size:12px; padding:8px 10px; }
+.camera-optics .camera-feature-state { flex:none; padding:10px 16px; color:#a9dfcf; background:#102d2b; border:1px solid #2f625b; border-radius:10px; font-size:16px; font-weight:600; }
+.camera-optics .camera-feature-state.degraded { color:#ffcca4; background:#35291f; border-color:#8a6240; }
+.camera-optics .camera-takeaway { padding:12px 16px; }

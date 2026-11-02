@@ -24,7 +24,7 @@ export function h(tag, attrs, ...kids) {
 export function slider({ label, min, max, step = 1, value, unit = '', digits = 1, fmt, onInput, hint }) {
   const input = h('input', { type: 'range', min, max, step, value });
   const val = h('span', { class: 'sl-val' });
-  const show = (v) => { val.textContent = fmt ? fmt(v) : `${(+v).toFixed(digits)} ${unit}`.trim(); };
+  const show = (v) => { val.textContent = fmt ? fmt(v) : `${(+v).toFixed(digits)} ${unit}`.trim(); const lo = +input.min, hi = +input.max; input.style.setProperty('--range-position', `${100 * Math.max(0, Math.min(1, (+v - lo) / (hi - lo || 1)))}%`); };
   show(value);
   input.addEventListener('input', () => { show(+input.value); onInput && onInput(+input.value); });
   const el = h('label', { class: 'slider' },
@@ -43,7 +43,7 @@ export function segmented(items, current, onChange) {
   const btns = {};
   const el = h('div', { class: 'seg' });
   const set = (id, silent) => {
-    for (const [k, b] of Object.entries(btns)) b.classList.toggle('on', k === id);
+    for (const [k, b] of Object.entries(btns)) { b.classList.toggle('on', k === id); b.setAttribute('aria-pressed', String(k === id)); }
     current = id;
     if (!silent && onChange) onChange(id);
   };
@@ -63,9 +63,10 @@ export function fitCanvas(canvas, onResize) {
   const obj = { canvas, ctx, w: 0, h: 0 };
   const apply = () => {
     const w = canvas.clientWidth, h = canvas.clientHeight;
-    if (w < 2 || h < 2) { obj.w = 0; return; }
+    if (w < 2 || h < 2) { obj.w = obj.h = 0; return; }
     const dpr = Math.min((window.devicePixelRatio || 1) * (window.__deckScale || 1), 3);
     const bw = Math.round(w * dpr), bh = Math.round(h * dpr);
+    if (obj.w === w && obj.h === h && canvas.width === bw && canvas.height === bh) return;
     if (canvas.width !== bw || canvas.height !== bh) { canvas.width = bw; canvas.height = bh; }
     ctx.setTransform(bw / w, 0, 0, bh / h, 0, 0);
     obj.w = w; obj.h = h;
@@ -86,7 +87,7 @@ export function loop(fn) {
     const dt = Math.min(0.1, (t - last) / 1000 || 0);
     last = t;
     fn(dt, t / 1000);
-    id = requestAnimationFrame(tick);
+    if (on) id = requestAnimationFrame(tick);
   };
   return {
     start() { if (on) return; on = true; last = performance.now(); id = requestAnimationFrame(tick); },

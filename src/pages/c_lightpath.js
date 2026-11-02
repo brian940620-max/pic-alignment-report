@@ -2,7 +2,9 @@
 //   1) 位置、焦平面、方向：側視＋端面視＋滑桿＋即時耦合效率
 import { h, slider, segmented, fitCanvas, loop, fmtLen, fmtDb, fmtPct, clamp, DEG } from '../ui.js';
 import { eta, toDb, lossDb, tolerance1dB, PRESETS, beamAt, K0, LAMBDA } from '../physics.js';
-import { drawSide, drawFacet, drawMeter } from '../microview.js';
+import { drawMeter } from '../microview.js';
+import { drawOpticalSide, drawOpticalFacet } from '../alignment-optics.js';
+import { frameTask } from '../render-task.js';
 import { Couple3D, C3D_CSS } from '../couple3d.js';
 import { CASES, CASE_IDS, LAYER_NAMES } from '../optics3.js';
 
@@ -42,7 +44,7 @@ export function mount(sec) {
   let tol = {};
   let zoomMode = 'near';
   let hw = 6;
-  const trail = [];
+  let flow = !matchMedia('(prefers-reduced-motion: reduce)').matches, flowTime = 0, frameTime = 0;
   const sls = { dx: [], dy: [], gap: [], tx: [], ty: [] };       // 各投影片的滑桿，同步用
   const V = { s1: null };                    // 各投影片的畫布與元件（建好才有）
   let active = 0;
@@ -70,58 +72,74 @@ export function mount(sec) {
     body.append(h('style', null, C3D_CSS));
     const holder = h('div', { class: 'c3d', style: { height: '100%' } });
     const say = h('div', { class: 'lightpath-explanation', 'aria-live': 'polite', style: { fontSize: '19px', lineHeight: 1.6 } });
-    const strip = h('div', { class: 'lstrip' });
+    const strip = h('div', { class: 'method-map' });
+    const methodCopy = {
+      lensed: ['光纖尖端聚焦', '透鏡隨光纖移動，將光收進晶片端面。'],
+      freelens: ['自由空間中聚焦', '光纖先出光，再經獨立透鏡收斂。'],
+      chiplens: ['晶片端面聚焦', '透鏡整合在 PIC 上，將光收進 SSC。'],
+    };
     const btns = {};
     const pick = h('div', { class: 'cpick' }, CASE_IDS.map((id) => (btns[id] = h('button', { type: 'button', onclick: () => c3.setCase(id) },
-      h('span', { class: 't' }, CASES[id].tag), h('span', null, h('b', null, CASES[id].name), h('small', null, `透鏡在第 ${CASES[id].layer} 層`))))));
+      h('span', { class: 't' }, CASES[id].tag), h('span', null, h('b', null, CASES[id].name))))));
     const onCase = (id) => {
       const c = CASES[id];
       for (const k of CASE_IDS) { btns[k].classList.toggle('on', k === id); btns[k].setAttribute('aria-pressed', String(k === id)); }
-      say.replaceChildren(h('b', { style: { color: '#ffb86b' } }, c.lensName), '：', c.say);
-      strip.replaceChildren(...LAYER_NAMES.map((n, i) => h('div', { class: i + 1 === c.layer ? 'on' : '' }, h('i', null, i + 1 === c.layer ? '透鏡' : ''), n.replace('：', '\n'))));
+      say.replaceChildren(h('b', null, methodCopy[id][0]), h('p', null, methodCopy[id][1]));
+      const lx = [70, 175, 280][c.layer - 1];
+      strip.innerHTML = `<svg viewBox="0 0 350 170" role="img" aria-label="透鏡位於${methodCopy[id][0]}">
+        <path d="M30 82 H320" stroke="#3b5269" stroke-width="2"/>
+        <path class="method-flow" d="M30 82 H320" stroke="#efbd83" stroke-width="3" stroke-dasharray="5 14"/>
+        <rect x="20" y="65" width="50" height="34" rx="6" fill="#83a5c239" stroke="#8eacc7"/>
+        <rect x="280" y="58" width="50" height="48" rx="6" fill="#5ea8df25" stroke="#6da5d0"/>
+        <ellipse cx="${lx}" cy="82" rx="9" ry="31" fill="#f4c48570" stroke="#ffd59b" stroke-width="2"/>
+        <text x="${lx}" y="32" text-anchor="middle" fill="#ffdbad" font-size="16" font-weight="700">透鏡</text>
+        <g text-anchor="middle" fill="#b3c8da" font-size="14"><text x="60" y="142">光纖端</text><text x="175" y="142">自由空間</text><text x="300" y="142">PIC 端</text></g>
+      </svg>`;
     };
-    const c3 = new Couple3D(holder, { caseId: 'lensed', onCase, hq: true });
+    const c3 = new Couple3D(holder, { caseId: 'lensed', onCase, hq: true, layers: false, concise: true });
+    c3.repeatSeconds = 9;
     onCase('lensed');
     body.append(h('div', { class: 'grid grow lightpath-layout' },
       h('div', { class: 'card dark lightpath-scene', style: { padding: '6px' } }, holder),   // 計畫版拿掉「拖曳旋轉視角 · 滾輪縮放」
       h('div', { class: 'card dark col lightpath-panel', style: { gap: '12px' } },
-        pick, say,   // 計畫版拿掉「沿 Z 的三層」說明與層條
+        pick, strip, say,
         h('div', { class: 'row lightpath-actions' },
           h('button', { class: 'btn ghost', type: 'button', onclick: () => c3.replay() }, '重播光路'),
           h('button', { class: 'btn ghost', type: 'button', onclick: () => c3.resetView() }, '視角重置')))));
-    let timer = 0;   // 光路自動重複播放（同封面：每 9 秒重播）
-    return { show() { c3.start(); clearInterval(timer); timer = setInterval(() => c3.replay(), 9000); }, hide() { c3.stop(); clearInterval(timer); } };
+    // 依實際動畫進度重播，低幀率時也讓光完整走進 PIC。
+    return { show() { c3.start(); }, hide() { c3.stop(); } };
   });
 
   // ===================== 投影片 1 =====================
-  sec.slide({ title: '透鏡光纖：把聚焦點送進波導', sub: '位置、焦平面、方向；拖滑桿看耦合效率怎麼變' }, (body) => {
+  sec.slide({ title: '透鏡光纖：把聚焦點送進波導', sub: '' }, (body) => {
     addStyle(body);
     body.closest('.slide').classList.add('edge-ui', 'alignment-ui');
-    const condBox = h('div', { class: 'cond' });
     const sideCv = h('canvas', { class: 'cv', style: { height: '330px' } });
     const facetCv = h('canvas', { class: 'cv', style: { height: '330px' } });
     const zoomSeg = segmented([{ id: 'near', label: '近距離' }, { id: 'far', label: '寬視野' }], zoomMode, (id) => { zoomMode = id; draw(); });
     zoomSeg.el.classList.add('ov');
+    const flowButton = h('button', { type: 'button', class: 'btn ghost optical-flow-toggle', 'aria-pressed': String(flow), onclick: () => {
+      flow = !flow; flowButton.textContent = flow ? '暫停光流' : '播放光流'; flowButton.setAttribute('aria-pressed', String(flow));
+      if (flow) lp.start(); draw();
+    } }, flow ? '暫停光流' : '播放光流');
     const bigEta = h('div', { class: 'big' }), bigDb = h('div', { class: 'mono muted' });
     const meterCv = h('canvas', { style: { width: '100%', height: '32px', display: 'block' } });
-    const note = h('div', { class: 'small muted' });
-    body.append(condBox,
+    body.append(
       h('div', { class: 'grid alignment-views', style: { gridTemplateColumns: '2.1fr 1fr', flex: 'none' } },
-        h('div', { class: 'relv' }, sideCv, zoomSeg.el), facetCv),
+        h('div', { class: 'relv optical-side' }, h('h3', { class: 'view-heading' }, '側視光路'), sideCv, zoomSeg.el, flowButton,
+          h('div', { class: 'optical-view-note' }, '光纖外形、光流為示意 · 光腰與端面位置依模型')),
+        h('div', { class: 'relv' }, h('h3', { class: 'view-heading' }, '端面重疊 · 橘色光點／藍色波導'), facetCv)),
       h('div', { class: 'card dark fill alignment-controls', style: { display: 'grid', gridTemplateColumns: '1.25fr 1fr 1fr 0.8fr', gap: '18px', alignContent: 'start' } },
         h('div', null, h('h3', null, '透鏡光纖 → SSC'),
-          h('div', { class: 'spec' }, h('span', null, h('b', null, '3 µm'), '光點'), h('span', null, h('b', null, '30 µm'), '工作距離'), h('span', null, h('b', null, '3×3 µm'), 'SSC')),
-          note,
+          h('p', { class: 'alignment-intro' }, '調整位置與方向，讓光點落在波導中心。'),
           h('div', { class: 'row', style: { marginTop: '8px' } },
             h('button', { class: 'btn ghost', type: 'button', onclick: () => { pose = { dx: 0, dy: 0, gap: p.WD, tx: 0, ty: 0 }; syncSliders(); draw(); } }, '最佳位置'),
             h('button', { class: 'btn ghost', type: 'button', onclick: () => { pose = startPose(); syncSliders(); draw(); } }, '起始誤差'))),
-        h('div', null, mk('dx', '橫向偏移 X', -12, 12, 0.05, 'µm', 2), mk('dy', '橫向偏移 Y', -12, 12, 0.05, 'µm', 2), mk('gap', '光纖到晶片端面的間距', 0, 120, 0.1, 'µm', 1)),
-        h('div', null, mk('tx', '傾角（水平面）', -6, 6, 0.05, '°', 2, DEG), mk('ty', '傾角（垂直面）', -6, 6, 0.05, '°', 2, DEG),
-          h('div', { class: 'small muted' }, '傾角繞「光纖端面中心」轉；端面上的光點中心會平移 間距×傾角。')),
-        h('div', { class: 'kpi' }, h('div', { class: 'lab' }, '耦合效率（功率計讀數）'), bigEta, bigDb, meterCv)));
+        h('div', { class: 'alignment-position' }, h('div', { class: 'alignment-group-title' }, '位置與間距'), mk('dx', '橫向偏移 X', -12, 12, 0.05, 'µm', 2), mk('dy', '橫向偏移 Y', -12, 12, 0.05, 'µm', 2), mk('gap', 'Z 端面間距', 0, 120, 0.1, 'µm', 1)),
+        h('div', { class: 'alignment-angle' }, h('div', { class: 'alignment-group-title' }, '光軸方向'), mk('tx', '傾角（水平面）', -6, 6, 0.05, '°', 2, DEG), mk('ty', '傾角（垂直面）', -6, 6, 0.05, '°', 2, DEG)),
+        h('div', { class: 'kpi' }, h('div', { class: 'lab' }, '模擬耦合效率'), bigEta, bigDb)));
     const sideG = fitCanvas(sideCv, () => draw()), facetG = fitCanvas(facetCv, () => draw()), meterG = fitCanvas(meterCv, () => draw());
-    V.s1 = { condBox, sideG, facetG, meterG, bigEta, bigDb, note };
-    note.textContent = PRESETS[presetId].note + '（示意值，非實機規格）';
+    V.s1 = { sideG, facetG, meterG, bigEta, bigDb };
     setGapRange(); syncSliders();
     return { show() { active = 1; lp.start(); sideG.apply(); facetG.apply(); meterG.apply(); draw(); }, hide() { active = 0; lp.stop(); } };
   });
@@ -144,6 +162,8 @@ export function mount(sec) {
     addStyle(body);
     body.closest('.slide').classList.add('edge-ui', 'reflection-ui');
     const st = { d: p.WD, facet: 'ssc' };
+    const requestPlot = frameTask(draw3);
+    let curveKey, curve;
     const R1 = Rof({ n: 1.45 }), zR = beamAt(p, 0).zR;
     const fp = (d) => {
       const R2 = Rof(FACETS[st.facet]), g = 1 / Math.sqrt(1 + ((d - p.WD) / zR) ** 2), r = Math.sqrt(R1 * R2) * g;
@@ -151,23 +171,28 @@ export function mount(sec) {
       return { e, P: e * T, env: e * (1 - R1) * (1 - R2), pp: 20 * Math.log10((1 + r) / (1 - r)), R2 };
     };
     const cv = h('canvas', { style: { width: '100%', height: '100%', display: 'block' } });
-    const G = fitCanvas(cv, () => draw3());
-    const seg = segmented(Object.entries(FACETS).map(([id, f]) => ({ id, label: f.label })), st.facet, (id) => { st.facet = id; draw3(); });
+    const G = fitCanvas(cv, requestPlot);
+    const seg = segmented(Object.entries(FACETS).map(([id, f]) => ({ id, label: f.label })), st.facet, (id) => { st.facet = id; requestPlot(); });
     seg.el.style.flexDirection = 'column';
-    const sD = slider({ label: '間距 d（光纖尖端到晶片端面）', min: p.WD - 4, max: p.WD + 4, step: 0.01, value: st.d, unit: 'µm', digits: 2, onInput: (v) => { st.d = v; draw3(); } });
+    const sD = slider({ label: '光纖尖端至晶片間距 d', min: p.WD - 4, max: p.WD + 4, step: 0.01, value: st.d, unit: 'µm', digits: 2, onInput: (v) => { st.d = v; requestPlot(); } });
     const kP = h('div', { class: 'big', style: { fontSize: '34px' } }), kPP = h('div', { class: 'big', style: { fontSize: '34px', color: '#ffb86b' } });
-    body.append(h('div', { class: 'grid grow', style: { gridTemplateColumns: '1.75fr 1fr' } },
-      h('div', { class: 'card dark', style: { padding: '8px 10px' } }, cv),
-      h('div', { class: 'card dark col', style: { gap: '10px', color: '#dfe8fa' } },
-        h('div', null, h('div', { class: 'small muted' }, '晶片端面'), seg.el), sD.el,
+    body.append(h('div', { class: 'grid grow reflection-layout' },
+      h('div', { class: 'card dark reflection-plot', style: { padding: '8px 10px' } }, cv),
+      h('div', { class: 'card dark col reflection-controls' },
+        h('div', null, h('h3', null, '晶片端面'), seg.el), sD.el,
         h('div', { class: 'grid g2', style: { gap: '10px' } },
-          h('div', { class: 'kpi' }, h('div', { class: 'lab' }, '目前功率'), kP),
+          h('div', { class: 'kpi' }, h('div', { class: 'lab' }, '模擬功率'), kP),
           h('div', { class: 'kpi' }, h('div', { class: 'lab' }, '漣漪峰對峰'), kPP)),
-        h('ul', { style: { fontSize: '15.5px', lineHeight: 1.6, margin: '0', paddingLeft: '20px' } },
-          h('li', null, '兩個端面各反射一點光，中間就像一個共振腔；間距每變 λ/2 ≈ 0.78 µm，功率起伏一次'),
-          h('li', null, '起伏大小主要看兩面反射率：矽端面最大，鍍抗反射膜幾乎看不到；本頁假設反射光全部耦合回去，所以是上限，離光腰越遠起伏越小'),
-          h('li', null, h('b', { style: { color: '#ffb86b' } }, '對 Z 對位的影響：'), '沿 Z 移動時功率疊上這個起伏，用功率比反推間距（B）會被帶偏；在同一個 Z 繞圈量光斑寬度（C）時，每一點間距相同，漣漪只是共同倍數，光斑寬度不受影響')))),
-      h('div', { class: 'src', style: { flex: 'none' } }, FP_SRC));
+        h('div', { class: 'reflection-notes' },
+          h('div', null, h('b', null, '干涉週期'), h('p', null, `間距每變 λ/2 = ${(LAMBDA / 2).toFixed(3)} µm，功率起伏一次。`)),
+          h('div', null, h('b', null, '反射越強，漣漪越大'), h('p', null, '矽端面最明顯；抗反射膜可降低起伏。離光腰越遠，再耦合越弱。'))),
+        h('div', { class: 'measure-takeaway' }, h('b', null, 'Z 功率法會受漣漪干擾'),
+          h('p', null, '固定 Z 量光斑寬度時，共同倍率不改變寬度（本模型假設）。')))),
+      h('div', { class: 'src measure-source', title: FP_SRC }, '模型：Hecht（2017）、',
+        h('a', { href: 'https://doi.org/10.1364/AO.43.005691', target: '_blank', rel: 'noopener noreferrer' }, 'St-Amant（2004）'),
+        '；折射率：', h('a', { href: 'https://doi.org/10.1063/1.555624', target: '_blank', rel: 'noopener noreferrer' }, 'Li（1980）'), '、',
+        h('a', { href: 'https://doi.org/10.1364/JOSA.55.001205', target: '_blank', rel: 'noopener noreferrer' }, 'Malitson（1965）'),
+        '；參考量測：', h('a', { href: 'https://arxiv.org/abs/2506.08155', target: '_blank', rel: 'noopener noreferrer' }, 'Parise et al.（2025，預印本）'), '。'));
     function draw3() {
       if (!G.w) return;
       const { ctx, w: W, h: H } = G; ctx.clearRect(0, 0, W, H);
@@ -187,11 +212,16 @@ export function mount(sec) {
       ctx.fillStyle = '#dfe8fa'; ctx.font = font(14, 600); ctx.textAlign = 'center'; ctx.textBaseline = 'top';
       ctx.fillText(`光纖端面 R₁ = ${(R1 * 100).toFixed(1)}%`, fx - 20, 6); ctx.fillText(`晶片端面 R₂ = ${(cur.R2 * 100).toFixed(cur.R2 < 0.01 ? 1 : 1)}%`, cx2 + 60, 6);
       ctx.fillStyle = '#ffd29a'; ctx.fillText(`間距 d = ${st.d.toFixed(2)} µm`, (fx + cx2) / 2, my + 40);
-      ctx.fillStyle = '#93a6c6'; ctx.font = font(13); ctx.fillText('來回反射的光和直接進去的光疊加：相位對上就變亮，錯開就變暗', (fx + cx2) / 2, sh - 4);
+      ctx.fillStyle = '#abc2d4'; ctx.font = font(14); ctx.fillText('直接光與反射光干涉，功率隨間距起伏', (fx + cx2) / 2, sh - 4);
       // ---- 下：功率 vs 間距 ----
       const L = 64, T = sh + 30, Wp = W - L - 20, Hp = H - T - 42, d0 = p.WD - 4, d1 = p.WD + 4;
-      const xs = [], ys = [], es = []; for (let i = 0; i <= 1600; i++) { const d = d0 + ((d1 - d0) * i) / 1600, q = fp(d); xs.push(d); ys.push(10 * Math.log10(q.P)); es.push(10 * Math.log10(q.env)); }
-      const yMax = Math.max(...ys) + 0.3, yMin = Math.min(...ys) - 0.3;
+      // The cursor moves independently of this full-resolution optical curve.
+      const key = JSON.stringify([p, st.facet]);
+      if (key !== curveKey) {
+        const xs = [], ys = [], es = []; for (let i = 0; i <= 1600; i++) { const d = d0 + ((d1 - d0) * i) / 1600, q = fp(d); xs.push(d); ys.push(10 * Math.log10(q.P)); es.push(10 * Math.log10(q.env)); }
+        curve = { xs, ys, es, yMax: Math.max(...ys) + 0.3, yMin: Math.min(...ys) - 0.3 }; curveKey = key;
+      }
+      const { xs, ys, es, yMax, yMin } = curve;
       const X = (d) => L + ((d - d0) / (d1 - d0)) * Wp, Y = (v) => T + (1 - (v - yMin) / (yMax - yMin)) * Hp;
       ctx.fillStyle = '#081120'; ctx.fillRect(L, T, Wp, Hp); ctx.strokeStyle = 'rgba(140,170,230,.35)'; ctx.lineWidth = 1; ctx.strokeRect(L, T, Wp, Hp);
       ctx.strokeStyle = 'rgba(140,170,230,.12)'; ctx.fillStyle = '#93a6c6'; ctx.font = font(12); ctx.textAlign = 'center'; ctx.textBaseline = 'top';
@@ -207,9 +237,9 @@ export function mount(sec) {
       // 週期標記
       const pd = LAMBDA / 2, ya = T + 16; ctx.strokeStyle = '#ffd29a'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(X(d0 + 0.5), ya); ctx.lineTo(X(d0 + 0.5 + pd), ya); ctx.stroke();
       ctx.fillStyle = '#ffd29a'; ctx.textAlign = 'left'; ctx.textBaseline = 'middle'; ctx.font = font(13, 600); ctx.fillText(`週期 λ/2 = ${pd.toFixed(3)} µm`, X(d0 + 0.5 + pd) + 8, ya);
-      ctx.textAlign = 'right'; ctx.fillStyle = '#ff9a4d'; ctx.fillText('有端面反射（量到的功率）', L + Wp - 10, T + 16); ctx.fillStyle = '#7fb2ff'; ctx.fillText('沒有反射（只有模場耦合）', L + Wp - 10, T + 34);
+      ctx.textAlign = 'right'; ctx.fillStyle = '#ff9a4d'; ctx.fillText('含干涉（模擬功率）', L + Wp - 10, T + 16); ctx.fillStyle = '#7fb2ff'; ctx.fillText('無干涉包絡（含反射損耗）', L + Wp - 10, T + 34);
     }
-    return { show() { G.apply(); draw3(); } };
+    return { show() { G.apply(); requestPlot.flush(); }, hide() { requestPlot.cancel(); } };
   });
 
   // ---- 繪製 ----
@@ -218,23 +248,25 @@ export function mount(sec) {
     const cx = pose.dx + pose.gap * pose.tx, cy = pose.dy + pose.gap * pose.ty;
     const spot = beamAt(p, pose.gap - p.WD).w;
     const target = clamp(Math.max(3 * Math.max(p.wgx, p.wgy), 1.8 * spot, 1.5 * Math.hypot(cx, cy)), 3, 90);
-    if (active === 1) hw += (target - hw) * 0.18;
+    if (active === 1) {
+      if (Math.abs(target - hw) > 0.002) { hw += (target - hw) * 0.18; lp.start(); }
+      else { hw = target; if (!flow) lp.stop(); }
+    }
     if (active === 1 && V.s1 && V.s1.sideG.w) {
-      const { condBox, sideG, facetG, meterG, bigEta, bigDb } = V.s1;
-      drawSide(sideG, p, pose, { ...zoomView(), eta: e });
-      drawFacet(facetG, p, pose, { hw, trail });
-      const lat = Math.hypot(cx, cy), zErr = Math.abs(pose.gap - p.WD), th = Math.hypot(pose.tx, pose.ty), tolLat = Math.min(tol.x, tol.y);
-      const item = (title, val, tolTxt, ok) => h('div', { class: ok ? 'ok' : 'bad' },
-        h('span', { class: 'st' }, ok ? '✔ 在容差內' : '✖ 超出'), h('b', null, title), h('div', { class: 'v' }, `${val}　（${tolTxt}）`));
-      condBox.replaceChildren(
-        item('① 位置', `偏離 ${fmtLen(lat)}`, `容差 ±${fmtLen(tolLat)}`, lat <= tolLat),
-        item('② 焦平面（Z）', `離端面 ${fmtLen(zErr)}`, `容差 ±${fmtLen(tol.z)}`, zErr <= tol.z),
-        item('③ 方向（傾角）', `${(th / DEG).toFixed(2)}°`, `容差 ±${(tol.t / DEG).toFixed(2)}°`, th <= tol.t),
-        h('div', null, h('b', null, '④ 大小匹配'), h('div', { class: 'v' }, `失配 ${fmtDb(lossDb(eta(p, { dx: 0, dy: 0, gap: p.WD, tx: 0, ty: 0 })))}`), h('div', { class: 'small muted' }, '由光纖與波導模場決定')));
-      bigEta.textContent = fmtPct(e); bigDb.textContent = `${fmtDb(lossDb(e))} 損耗`;
-      drawMeter(meterG, toDb(e));
+      const { sideG, facetG, meterG, bigEta, bigDb } = V.s1;
+      drawOpticalSide(sideG, p, pose, { ...zoomView(), eta: e, flow, time: flowTime });
+      const facetKey = JSON.stringify([pose, hw, facetG.w, facetG.h, facetG.canvas.width, facetG.canvas.height]);
+      if (V.s1.facetKey !== facetKey) { drawOpticalFacet(facetG, p, pose, { hw }); V.s1.facetKey = facetKey; }
+      const pct = fmtPct(e), db = `${fmtDb(lossDb(e))} 損耗`;
+      if (bigEta.textContent !== pct) bigEta.textContent = pct;
+      if (bigDb.textContent !== db) bigDb.textContent = db;
+      if (meterG.w) drawMeter(meterG, toDb(e));
     }
   }
 
-  const lp = loop(() => draw());
+  const lp = loop(dt => {
+    if (flow) flowTime += dt;
+    frameTime += dt;
+    if (frameTime >= 1 / 30) { frameTime %= 1 / 30; draw(); }
+  });
 }

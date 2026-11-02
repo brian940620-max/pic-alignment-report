@@ -117,7 +117,7 @@ export function buildMachineRun() {
 
 // ===================== 陣列：8 通道 FA 對 PIC =====================
 // 通道效率用 ④ 的模型（fa_pic.js：UHNA 陣列 → SSC、旋轉中心在第 1 通道）。全段示意；功率由模型算。
-export function buildFARun() {
+export function buildFARun(config = FA) {
   const A = { dx: 18000, dy: 3500, gap: 40000, tx: 2.5 * DEG, ty: -2 * DEG, tz: 1.5 * DEG };
   const B = { dx: 260, dy: -180, gap: 600, tx: 0.5 * DEG, ty: -0.4 * DEG, tz: 0.6 * DEG };
   const C = { dx: 14, dy: -11, gap: 45, tx: 0.15 * DEG, ty: -0.1 * DEG, tz: 0.3 * DEG };   // 相機完：θz 還差 0.3°、θy 0.15°
@@ -170,7 +170,7 @@ export function buildFARun() {
     }
     const rel = relOf(coarse, piezo);
     // 通道效率：旋轉中心在第 1 通道；θy 讓各通道間距不同
-    const ch = chans({ dx: rel.dx, dy: rel.dy, g0: rel.gap, thz: rel.tz, thy: rel.tx, pivot: { x: 0, y: 0 } }).map((c) => ({ ...c, db: 10 * Math.log10(Math.max(c.e / FA_PEAK, 1e-9)) }));
+    const ch = chans({ dx: rel.dx, dy: rel.dy, g0: rel.gap, thz: rel.tz, thy: rel.tx, pivot: { x: 0, y: 0 } }, config).map((c) => ({ ...c, db: 10 * Math.log10(Math.max(c.e / FA_PEAK, 1e-9)) }));
     return { t, stage, step, part, cam, coarse, piezo, rel, snap, shot, ml, show, s3, ch, lit: stage === 3 && ch[0].db > -40 };
   }
   const PF = piezoAt(total), AMP = 200;
@@ -182,5 +182,5 @@ export function buildFARun() {
       ptx: ka * (p.tx - PF.tx), pty: ka * (p.ty - PF.ty), ptz: ka * (p.tz - PF.tz), power: 0,
     };
   }
-  return { total, stages, steps3: P3, at, machinePose, AMP, N: () => FA.N, P: () => FA.P };
+  return { total, stages, steps3: P3, at, machinePose, AMP, N: () => config.N, P: () => config.P };
 }

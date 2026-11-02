@@ -6,6 +6,7 @@
 // （主峰 σ 1.5 µm、First Light 門檻 0.20、雜訊每點 0.3%、10 點移動平均）。
 // 動畫只重現迭代式本身（沒有模擬移動途中取樣與假峰），所以是示意；表現數字來自 aesc_30trials.csv。
 import { h, segmented, slider, fitCanvas, loop, clamp } from '../ui.js';
+import { fieldRGB } from '../presentation-palette.js';
 
 const SIG = 1.5, T = 0.2, AMAX = 0.15, AMIN = 0.01, W = [0.65, 0.88], A_OUT = 0.10, A_GRAD = 0.03, STEP = 0.5;
 const NOISE_EFF = (n) => n / Math.sqrt(10);   // 每點雜訊 → 10 點移動平均後
@@ -41,15 +42,11 @@ function makeAESC({ start, noise, seed, stopAt = 0.995 }) {
   return st;
 }
 
-// 類 parula 色帶（MATLAB 圖的配色），t ∈ [0,1]
-const PAR = [[53, 42, 135], [15, 92, 221], [20, 129, 214], [6, 164, 202], [46, 183, 164], [135, 191, 119], [209, 187, 89], [254, 200, 50], [249, 251, 14]];
-const parula = (t) => { t = clamp(t, 0, 1) * (PAR.length - 1); const i = Math.min(PAR.length - 2, Math.floor(t)), f = t - i; return PAR[i].map((v, k) => Math.round(v + (PAR[i + 1][k] - v) * f)); };
-
 function heat(ctx, w, H, X, Y, inv, dbMin) {   // 畫功率熱圖（dB），inv：像素 → µm
   const img = ctx.createImageData(Math.ceil(w), Math.ceil(H));
   for (let j = 0; j < img.height; j++) for (let i = 0; i < img.width; i++) {
     const [x, y] = inv(i, j), db = 10 * Math.log10(Math.max(Pof(x, y), 1e-9));
-    const [r, g, b] = parula(1 - db / dbMin), o = (j * img.width + i) * 4;
+    const [r, g, b] = fieldRGB(1 - db / dbMin), o = (j * img.width + i) * 4;
     img.data[o] = r; img.data[o + 1] = g; img.data[o + 2] = b; img.data[o + 3] = 255;
   }
   return img;
@@ -98,6 +95,24 @@ const CSS = `
 `;
 const pane = (c, tag) => { c.style.position = 'absolute'; return h('div', { class: 'pane fill' }, c, tag ? h('div', { class: 'tag' }, tag) : null); };
 
+// Keep the original comparison figures readable without crowding the slide.
+function figureZoom(body) {
+  body.querySelectorAll('.figs img').forEach(img => {
+    img.tabIndex = 0; img.setAttribute('role', 'button'); img.setAttribute('aria-label', `放大：${img.alt}`);
+    const open = () => {
+      const dialog = h('dialog', { class: 'measure-figure-dialog', 'aria-label': img.alt },
+        h('div', { class: 'measure-dialog-head' }, h('b', null, img.alt),
+          h('button', { class: 'btn ghost', type: 'button', onclick: () => dialog.close() }, '關閉')),
+        h('img', { src: img.src, alt: img.alt }));
+      dialog.addEventListener('close', () => { dialog.remove(); img.focus(); });
+      dialog.addEventListener('keydown', e => e.stopPropagation());
+      body.closest('.slide').append(dialog); dialog.showModal();
+    };
+    img.addEventListener('click', open);
+    img.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); open(); } });
+  });
+}
+
 // ---------- 第 1 頁：AESC 動畫與表現 ----------
 function aescSlide(body) {
   const st = { noise: 0.003, seed: 7, speed: 1, run: null, acc: 0 };
@@ -107,7 +122,8 @@ function aescSlide(body) {
   const info = h('div', { class: 'rd2' });
   const VIEW = 3.2;
   const reset = () => {
-    const R = rng(st.seed * 101), th = R.u() * 2 * Math.PI;
+    // Golden-angle spacing makes consecutive starts visibly different around the same First Light contour.
+    const th = (st.seed * Math.PI * (3 - Math.sqrt(5))) % (2 * Math.PI);
     st.run = makeAESC({ start: [D_FL * Math.cos(th), D_FL * Math.sin(th)], noise: st.noise, seed: st.seed });
     st.acc = 0; draw();
   };
@@ -144,32 +160,29 @@ function aescSlide(body) {
   }
   const anim = loop((dt) => { st.acc += dt * 60 * st.speed; let n = Math.floor(st.acc); st.acc -= n; while (n-- > 0 && !st.run.stopped && st.run.k < 700) st.run.step(); draw(); if (st.run.stopped || st.run.k >= 700) { anim.stop(); bPlay.textContent = '↻ 重播'; } });
   const bPlay = h('button', { type: 'button', class: 'btn', onclick: () => { if (anim.running) { anim.stop(); bPlay.textContent = '▶ 繼續'; return; } if (st.run.stopped || st.run.k >= 700) reset(); bPlay.textContent = '❚❚ 暫停'; anim.start(); } }, '▶ 播放');
-  const bNew = h('button', { type: 'button', class: 'btn ghost', onclick: () => { st.seed++; anim.stop(); bPlay.textContent = '▶ 播放'; reset(); } }, '換一組起點與雜訊');
-  const segN = segmented([{ id: '0', label: '無雜訊' }, { id: '0.003', label: '雜訊 0.3%（基準）' }], '0.003', (id) => { st.noise = +id; anim.stop(); bPlay.textContent = '▶ 播放'; reset(); });
-  const segS = segmented([{ id: '0.5', label: '0.5×' }, { id: '1', label: '1×' }, { id: '3', label: '3×' }], '1', (id) => { st.speed = +id; });
+  const bNew = h('button', { type: 'button', class: 'btn ghost', title: '起點沿找光門檻圓周移動約 137.5°，並更換雜訊序列', onclick: () => { st.seed++; anim.stop(); bPlay.textContent = '▶ 播放'; reset(); } }, '更換起點');
+  const segN = segmented([{ id: '0', label: '無雜訊' }, { id: '0.003', label: '雜訊 0.3%' }], '0.003', (id) => { st.noise = +id; anim.stop(); bPlay.textContent = '▶ 播放'; reset(); });
+  const segS = segmented([{ id: '0.5', label: '0.5×' }, { id: '1', label: '1×' }], '1', (id) => { st.speed = +id; });
 
   const kpi = (v, l) => h('div', null, h('b', null, v), h('span', null, l));
-  body.append(h('div', { class: 'grid grow', style: { gridTemplateColumns: '1.05fr 1fr' } },
-    h('div', { class: 'card dark col', style: { gap: '6px' } },
-      h('div', { class: 'row' }, bPlay, bNew, segN.el, segS.el),
-      pane(cv, 'AESC 第二階段：找到光之後（峰附近 ±3 µm）'), info,
-      h('div', { class: 'src' }, '橘線＝擾動中心的路徑；白點＝實際量測的擾動點；黃框＝目前擾動幅度；★＝真峰。迭代式與參數照 Spiral_AESC.m（擾動 0.15→0.01 µm、兩軸頻率 0.65／0.88、梯度低通 0.03、步進 0.5），主峰 σ 1.5 µm；動畫只重現迭代式（示意）。')),
-    h('div', { class: 'col' },
-      h('div', { class: 'card dark' },
-        h('div', { class: 'k-h' }, 'AESC：小幅擾動 → 解調出梯度 → 沿梯度走一小步'),
-        h('ul', { class: 'k-ul' },
-          h('li', null, 'X、Y 用兩個不同頻率的正弦擾動（Lissajous），功率跟著起伏；乘回同頻正弦再低通，就得到兩軸梯度'),
-          h('li', null, '越接近峰（功率越高）擾動越小：0.15 µm → 0.01 µm'))),
-      h('div', { class: 'card dark fill', style: { padding: '6px 8px', minHeight: '150px', display: 'flex', flexDirection: 'column' } },
-        h('div', { class: 'src' }, '離峰距離（橘）與擾動幅度（黃），對數座標'), pane(cd)),
-      h('div', { class: 'card dark' },
-        h('div', { class: 'k-h' }, '30 組隨機場景的表現（模擬）'),
-        h('div', { class: 'kpis' }, kpi('30/30', '成功找到峰'), kpi('124 nm', '最終誤差（平均）'), kpi('181', '迭代次數（平均）'), kpi('2.08 s', '總時間（平均）')),
-        h('ul', { class: 'k-ul', style: { marginTop: '6px' } },
-          h('li', null, h('b', null, '停止要先知道峰值：'), '量到 ≥ 0.995 才停，誤差剛好停在 0.995 等高線（半徑 150 nm）'),
-          h('li', null, h('b', null, '被取樣率卡住：'), '10 點平均在 5000 µm/s 會跨 0.5 µm，比擾動還大，機台只能降到 1000 µm/s'),
-          h('li', null, h('b', null, '一次只走一小步：'), '平均 181 次迭代；繞圈梯度法同場景 6 圈、1.3 nm')),
-        h('div', { class: 'src' }, '出處：2D_alignment_sim/aesc_30trials.csv（誤差中位 120 nm、迭代中位 131、最多 700；總時間多半是第一階段找光 2.07 s）；繞圈梯度法比較見 文件/繞圈梯度法_開發進度.md 第 6 節。')))));
+  body.append(h('div', { class: 'grid grow aesc-layout' },
+    h('div', { class: 'card dark col aesc-demo' },
+      h('div', { class: 'row measure-toolbar' }, bPlay, bNew, segN.el, segS.el),
+      pane(cv, '找到光後的 AESC 軌跡（示意）'), info,
+      h('div', { class: 'measure-legend' },
+        h('span', { class: 'legend-path' }, '橘線：中心路徑'), h('span', null, '白點：取樣'),
+        h('span', { class: 'legend-dither' }, '黃框：擾動幅度'), h('span', null, '★：真峰'))),
+    h('div', { class: 'col aesc-results' },
+      h('div', { class: 'card dark measure-principle' },
+        h('div', { class: 'measure-flow' }, ['① 雙軸擾動', '② 解調梯度', '③ 更新位置'].map(t => h('span', null, t))),
+        h('p', null, '功率越高，擾動幅度由 150 nm 縮至 10 nm。')),
+      h('div', { class: 'card dark col fill aesc-convergence' },
+        h('div', { class: 'measure-chart-head' }, h('b', null, '收斂過程'), h('span', null, '橘：離峰距離　黃：擾動幅度（對數）')), pane(cd)),
+      h('div', { class: 'card dark measure-results' },
+        h('div', { class: 'k-h' }, '30 組隨機場景（模擬）'),
+        h('div', { class: 'kpis' }, kpi('30/30', '成功找到峰'), kpi('124 nm', '平均誤差'), kpi('181', '平均迭代次數'), kpi('2.08 s', '平均總時間')),
+        h('div', { class: 'measure-takeaway' }, h('b', null, '限制：停止需要已知峰值'),
+          h('p', null, '門檻 0.995 對應約 150 nm；取樣平均也限制移動速度。'))))));
   body.prepend(h('style', null, CSS));
   body.closest('.slide').classList.add('sp24');
   reset();
@@ -190,6 +203,8 @@ function limitSlide(body) {
   const S = fitCanvas(cs, () => draw()), N = fitCanvas(cn, () => draw()), Wk = fitCanvas(cw, () => draw());
   const rd = h('div', { class: 'rd2' });
   const R = rng(99);
+  // The three noise settings have fixed SNR curves; distance only moves the dot.
+  const snrCurves = new Map();
   const newWalk = () => { st.walk = makeAESC({ start: [0.05, 0.02], noise: st.noise, seed: 5 + Math.floor(Math.random() * 1000), stopAt: null }); };
 
   function draw() {
@@ -206,8 +221,8 @@ function limitSlide(body) {
       ctx.fillStyle = '#7fb2ff';
       for (let i = 0; i < n; i++) { const th = (i / n) * 2 * Math.PI * per + st.t; const v = Pof(d + a * Math.sin(th), 0) - P0 + ne * R.n(); ctx.beginPath(); ctx.arc(m.l + (i / n) * pw, Yv(clamp(v, -span, span)), 3, 0, 7); ctx.fill(); }
       ctx.font = '13px system-ui, "Microsoft JhengHei", sans-serif'; ctx.textAlign = 'left'; ctx.textBaseline = 'top';
-      ctx.fillStyle = '#ffe066'; ctx.fillText(`黃線＝擾動造成的功率變化（振幅 ${(A1 * 100).toPrecision(2)}%）`, m.l, 6);
-      ctx.fillStyle = '#7fb2ff'; ctx.textAlign = 'right'; ctx.fillText(`藍點＝實際量到（雜訊 ${(ne * 100).toFixed(3)}%）`, w - m.r, 6);
+      ctx.fillStyle = '#ffe066'; ctx.fillText(`訊號振幅 ${(A1 * 100).toPrecision(2)}%`, m.l, 6);
+      ctx.fillStyle = '#7fb2ff'; ctx.textAlign = 'right'; ctx.fillText(`平均後雜訊 ${(ne * 100).toFixed(3)}%`, w - m.r, 6);
     } }
     // SNR 對離峰距離
     { const { ctx, w, h: H } = N; if (w) {
@@ -222,7 +237,8 @@ function limitSlide(body) {
       ctx.fillStyle = '#ff8a8a'; ctx.textAlign = 'left'; ctx.textBaseline = 'bottom'; ctx.fillText('SNR < 1：方向被雜訊蓋過', m.l + 6, Y(1) + 16);
       for (const [nz, col] of [[0.001, 'rgba(127,178,255,.45)'], [st.noise, '#ffb547'], [0.01, 'rgba(255,107,107,.45)']]) {
         ctx.strokeStyle = col; ctx.lineWidth = nz === st.noise ? 2.6 : 1.4; ctx.beginPath();
-        for (let i = 0; i <= 160; i++) { const v = 10 ** (xl[0] + (i / 160) * (xl[1] - xl[0])); const y = Y(snrOf(v, nz)); i ? ctx.lineTo(X(v), y) : ctx.moveTo(X(v), y); } ctx.stroke(); }
+        if (!snrCurves.has(nz)) snrCurves.set(nz, Array.from({ length: 161 }, (_, i) => { const v = 10 ** (xl[0] + (i / 160) * (xl[1] - xl[0])); return [v, snrOf(v, nz)]; }));
+        snrCurves.get(nz).forEach(([v, snr], i) => { const y = Y(snr); i ? ctx.lineTo(X(v), y) : ctx.moveTo(X(v), y); }); ctx.stroke(); }
       ctx.lineWidth = 1; ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(X(d), Y(snr), 6, 0, 7); ctx.fill();
       ctx.fillStyle = '#93a6c6'; ctx.textAlign = 'right'; ctx.textBaseline = 'bottom'; ctx.fillText('離峰距離', w - m.r, H - m.b - 2);
     } }
@@ -238,32 +254,38 @@ function limitSlide(body) {
       ctx.fillStyle = dd > V ? '#ff6b6b' : '#fff'; ctx.font = '600 13px system-ui, "Microsoft JhengHei", sans-serif'; ctx.textAlign = 'left'; ctx.textBaseline = 'bottom';
       ctx.fillText(`第 ${r.k} 次：離峰 ${dd >= 1 ? dd.toFixed(1) + ' µm' : (dd * 1000).toFixed(0) + ' nm'}${dd > V ? '（跑出畫面）' : ''}`, 8, H - 6);
     } }
-    const dTxt = d >= 1 ? `${d.toFixed(2)} µm` : `${(d * 1000).toFixed(0)} nm`;
-    rd.innerHTML = `離峰 <b>${dTxt}</b>　擾動 <b>${(a * 1000).toFixed(0)} nm</b>　SNR <b class="${snr < 1 ? 'bad' : 'ok'}">${snr < 10 ? snr.toFixed(2) : snr.toFixed(0)}</b>　方向判對率 <b class="${snr < 1 ? 'bad' : 'ok'}">${(Phi(snr) * 100).toFixed(0)}%</b>`;
+    rd.innerHTML = `<div><span>SNR</span><b class="${snr < 1 ? 'bad' : 'ok'}">${snr < 10 ? snr.toFixed(2) : snr.toFixed(0)}</b></div><div><span>擾動幅度</span><b>${(a * 1000).toFixed(0)} nm</b></div><div><span>方向判對率（估算）</span><b class="${snr < 1 ? 'bad' : 'ok'}">${(Phi(snr) * 100).toFixed(0)}%</b></div>`;
   }
   const sD = slider({ label: '離峰距離（對數）', min: Math.log10(0.005), max: Math.log10(2), step: 0.01, value: Math.log10(st.d), fmt: (v) => { const x = 10 ** v; return x >= 1 ? `${x.toFixed(2)} µm` : `${(x * 1000).toFixed(0)} nm`; }, onInput: (v) => { st.d = 10 ** v; draw(); } });
   const segN = segmented([{ id: '0.001', label: '0.1%' }, { id: '0.003', label: '0.3%（基準）' }, { id: '0.01', label: '1%' }], '0.003', (id) => { st.noise = +id; newWalk(); draw(); });
   const anim = loop((dt) => { st.t += dt * 2.2; if (st.walk && st.walk.k < 3000) st.walk.step(); draw(); });
   const bWalk = h('button', { type: 'button', class: 'btn ghost', onclick: () => { newWalk(); draw(); } }, '↻ 重跑');
+  let playing = !matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const bPause = h('button', { type: 'button', class: 'btn ghost', onclick: () => {
+    playing = !playing; bPause.textContent = playing ? '暫停演示' : '播放演示';
+    if (playing) anim.start(); else anim.stop();
+  } }, playing ? '暫停演示' : '播放演示');
+  rd.classList.add('noise-metrics');
 
-  body.append(h('div', { class: 'grid grow', style: { gridTemplateColumns: '1.2fr 1fr' } },
-    h('div', { class: 'col' },
-      h('div', { class: 'card dark col', style: { gap: '4px' } },
-        h('div', { class: 'row' }, h('span', { style: { color: '#cfd9ec' } }, '每點雜訊'), segN.el), sD.el, rd),
-      h('div', { class: 'card dark fill', style: { padding: '6px 8px', display: 'flex', flexDirection: 'column' } }, pane(cs)),
-      h('div', { class: 'grid fill', style: { gridTemplateColumns: '1.25fr 1fr' } },
-        h('div', { class: 'card dark', style: { padding: '6px 8px', display: 'flex', flexDirection: 'column' } }, pane(cn)),
-        h('div', { class: 'card dark', style: { padding: '6px 8px', display: 'flex', flexDirection: 'column', gap: '4px' } },
-          h('div', { class: 'row', style: { justifyContent: 'space-between' } }, h('span', { class: 'src' }, 'AESC 不設停止，一直跑（±0.6 µm）'), bWalk), pane(cw)))),
-    h('div', { class: 'col' },
-      h('div', { class: 'card dark' },
-        h('div', { class: 'k-h' }, '為什麼越接近峰越難'),
+  body.append(h('div', { class: 'grid grow noise-layout' },
+    h('div', { class: 'col noise-demo' },
+      h('div', { class: 'card dark col noise-controls' },
+        h('div', { class: 'row measure-toolbar' }, h('span', null, '每點雜訊'), segN.el, bPause), sD.el, rd),
+      h('div', { class: 'card dark col fill noise-wave' },
+        h('div', { class: 'measure-chart-head' }, h('b', null, '訊號與雜訊'), h('span', null, '黃線：理想訊號　藍點：量測')), pane(cs)),
+      h('div', { class: 'grid fill noise-lower' },
+        h('div', { class: 'card dark col' }, pane(cn)),
+        h('div', { class: 'card dark col noise-walk' },
+          h('div', { class: 'measure-chart-head' }, h('b', null, '未設停止條件'), bWalk), pane(cw)))),
+    h('div', { class: 'col noise-evidence' },
+      h('div', { class: 'card dark measure-principle' },
+        h('div', { class: 'k-h' }, '越接近峰頂，方向越難判斷'),
         h('ul', { class: 'k-ul' },
-          h('li', null, h('b', null, '訊號變小：'), '峰頂是平的，擾動造成的功率變化 ∝ 離峰距離 × 擾動幅度'),
-          h('li', null, h('b', null, '雜訊被放大：'), '梯度＝功率變化 ÷ 擾動幅度，擾動從 150 nm 縮到 10 nm，雜訊跟著放大 15 倍'),
-          h('li', null, h('b', null, '沒有拉回的力：'), '方向一錯就往外走一步，迭代越多漂越遠'))),
-      h('div', { class: 'card dark fill col', style: { gap: '6px' } },
-        h('div', { class: 'k-h' }, '我們試過：先繞 1 圈，再接 AESC 精修 → 失敗'),
+          h('li', null, '功率變化 ∝ 離峰距離 × 擾動幅度'),
+          h('li', null, '擾動縮小 15 倍，梯度雜訊放大 15 倍'),
+          h('li', null, '方向誤判可能累積成位置漂移'))),
+      h('div', { class: 'card dark fill col noise-comparison' },
+        h('div', { class: 'measure-chart-head' }, h('b', null, '接續 AESC 未改善精度'), h('span', null, '點圖放大')),
         h('div', { class: 'figs fill' },
           h('figure', null, h('img', { src: 'assets/aesc_combo_converge.jpg', alt: '繞到收斂' }), h('figcaption', null, 'A 繞到收斂')),
           h('figure', null, h('img', { src: 'assets/aesc_combo_onerev.jpg', alt: '繞 1 圈接 AESC' }), h('figcaption', null, 'B 繞 1 圈＋AESC'))),
@@ -273,12 +295,14 @@ function limitSlide(body) {
           h('tr', null, h('td', null, '繞 1 圈＋AESC 30 次'), h('td', { class: 'bad' }, '37.8 nm'), h('td', null, '8.2 ms')),
           h('tr', null, h('td', null, '繞 1 圈＋AESC 100 次'), h('td', { class: 'bad' }, '121 nm'), h('td', null, '—')),
           h('tr', null, h('td', null, '繞 1 圈＋AESC 300 次'), h('td', { class: 'bad' }, '25.9 µm（跑掉）'), h('td', null, '—'))),
-        h('div', { class: 'src' }, '出處：10-13 進度報告（2D 模擬，30 組場景）。Z 軸的 B 法（前後抖 Z、看功率比）也是擾動法，同樣在峰附近被雜訊卡住 → 下一頁。')),
-      h('div', { class: 'src' }, 'SNR 為估算：擾動幅度照 AESC 規則由功率決定；訊號＝功率的一次諧波振幅；雜訊＝每點雜訊 ÷ √10（10 點平均）再經梯度低通 α 0.03。主峰 σ 1.5 µm。'))));
+        h('div', { class: 'measure-takeaway' }, '本組模擬保留繞圈收斂；增加 AESC 迭代可能造成漂移。')))),
+    h('div', { class: 'src measure-source', title: 'SNR 訊號取功率的一次諧波振幅；每點雜訊除以 √10，再計入梯度低通 α=0.03 的穩態雜訊。方向判對率以常態近似估算。' },
+      '模擬：10-13 進度報告，30 組場景；SNR 估算採 10 點平均、梯度低通 α=0.03、主峰 σ=1.5 µm。'));
   body.prepend(h('style', null, CSS));
   body.closest('.slide').classList.add('sp24');
+  figureZoom(body);
   newWalk(); draw();
-  return { show() { anim.start(); }, hide() { anim.stop(); } };
+  return { show() { S.apply(); N.apply(); Wk.apply(); draw(); if (playing) anim.start(); }, hide() { anim.stop(); } };
 }
 
 export function mount(sec) {

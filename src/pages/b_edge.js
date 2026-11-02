@@ -57,34 +57,39 @@ function pipes() {
     ${spill(238, 228, 262, 206)} ${spill(238, 284, 262, 306)}
     ${pill(330, 226, '✗ 大部分漏掉', '#a3261b', '#fbdcd8')}
     ${dim(14, 146, 302, '光纖模場 10.4 µm')}
-    <text x="320" y="282" font-size="12.5" fill="${SUB}" text-anchor="middle">矽波導 0.45 µm</text>`);
+    <text x="320" y="282" font-size="12.5" fill="${SUB}" text-anchor="middle">PIC 波導 0.45 µm</text>`);
 }
 
 // ② 簡化架構：光纖 → 透鏡（縮小光斑）→ 焦點 ← SSC（放大模場）← PIC 波導
 function arch() {
-  const env = 'M100 150 C140 150 176 160 214 162.5 L214 167.5 C176 170 140 180 100 180 Z';   // 聚焦的光束包絡
-  return svg(400, 330, `${DEFS}
-    <text x="52" y="104" font-size="15" font-weight="800" fill="${INK}" text-anchor="middle">光纖</text>
-    <g filter="url(#b1-sh)"><rect x="6" y="122" width="94" height="86" rx="4" fill="url(#b1-clad)" stroke="#8ea6c8"/>
-      <rect x="6" y="150" width="94" height="30" fill="url(#b1-core)"/></g>
-    <text x="52" y="226" font-size="11.5" fill="${SUB}" text-anchor="middle">纖芯模場 10.4 µm</text>
-    <path d="${env}" fill="url(#b1-beam)"/>
-    <g filter="url(#b1-sh)"><path d="M130 105 Q146 165 130 225 Q114 165 130 105 Z" fill="url(#b1-lens)" stroke="#d9a050" stroke-width="1.8"/></g>
-    <text x="130" y="96" font-size="15" font-weight="800" fill="${INK}" text-anchor="middle">透鏡</text>
-    <g filter="url(#b1-sh)"><path d="M218 74 L240 60 L398 60 L398 222 L376 236 L218 236 Z" fill="url(#b1-chipSide)"/>
-      <path d="M218 74 L240 60 L398 60 L376 74 Z" fill="url(#b1-chipTop)" stroke="#8d9ab0" stroke-width=".8"/>
-      <rect x="218" y="74" width="158" height="162" fill="url(#b1-chipTop)" stroke="#8d9ab0"/></g>
-    <text x="297" y="50" font-size="15" font-weight="800" fill="${INK}" text-anchor="middle">PIC 晶片</text>
-    <ellipse cx="225" cy="165" rx="9" ry="16" fill="#2b6cb0" opacity=".22"/>
-    <path d="M218 157 L300 163 L300 167 L218 173 Z" fill="url(#b1-ssc)"/><rect x="300" y="163.5" width="76" height="3" rx="1.5" fill="#1f5fa8"/>
-    <text x="258" y="196" font-size="14" font-weight="800" fill="#1f5fa8" text-anchor="middle">SSC</text>
-    <text x="340" y="155" font-size="12.5" fill="#1f5fa8" text-anchor="middle">矽波導</text>
-    <circle cx="214" cy="165" r="12" fill="url(#b1-glow)"/><circle cx="214" cy="165" r="3" fill="#fff" stroke="#e8590c" stroke-width="1.6"/>
-    <line x1="62" y1="250" x2="196" y2="250" stroke="#e8590c" stroke-width="2.4" marker-end="url(#b1-ar)"/>
-    <text x="128" y="274" font-size="14" fill="#e8590c" text-anchor="middle" font-weight="800">光纖側：縮小光斑</text><text x="128" y="292" font-size="12.5" fill="${SUB}" text-anchor="middle">10.4 µm → 約 3 µm</text>
-    <line x1="372" y1="250" x2="236" y2="250" stroke="#1f5fa8" stroke-width="2.4" marker-end="url(#b1-ab)"/>
-    <text x="304" y="274" font-size="14" fill="#1f5fa8" text-anchor="middle" font-weight="800">晶片側：放大模場</text><text x="304" y="292" font-size="12.5" fill="${SUB}" text-anchor="middle">0.45 µm → 約 3 µm</text>
-    ${pill(214, 315, '兩邊在約 3 µm 會合', '#1f7a35', '#d8f0dd', 14)}`);
+  return svg(400, 420, `${DEFS}
+    <text x="56" y="70" font-size="15" font-weight="800" fill="${INK}" text-anchor="middle">光纖</text>
+    <text x="136" y="70" font-size="15" font-weight="800" fill="${INK}" text-anchor="middle">透鏡</text>
+    <text x="312" y="54" font-size="15" font-weight="800" fill="${INK}" text-anchor="middle">PIC 晶片</text>
+    <g filter="url(#b1-sh)"><rect x="18" y="118" width="76" height="64" rx="4" fill="url(#b1-clad)" stroke="#8ea6c8"/>
+      <rect x="18" y="138" width="76" height="24" fill="url(#b1-core)"/></g>
+    <path d="M94 138 C150 138 190 145 234 147 L234 153 C190 155 150 162 94 162 Z" fill="url(#b1-beam)"/>
+    <path d="M136 102 Q151 150 136 198 Q121 150 136 102 Z" fill="url(#b1-lens)" stroke="#d9a050" stroke-width="1.8"/>
+    <g filter="url(#b1-sh)"><path d="M238 100 L250 88 L390 88 L390 202 L378 214 L238 214 Z" fill="url(#b1-chipSide)"/>
+      <path d="M238 100 L250 88 L390 88 L378 100 Z" fill="url(#b1-chipTop)" stroke="#8d9ab0"/>
+      <rect x="238" y="100" width="140" height="114" fill="url(#b1-chipTop)" stroke="#8d9ab0"/></g>
+    <path d="M238 141 L300 148 L300 152 L238 159 Z" fill="url(#b1-ssc)"/>
+    <rect x="300" y="148.5" width="78" height="3" rx="1.5" fill="#1f5fa8"/>
+    <text x="266" y="188" font-size="14" font-weight="800" fill="#1f5fa8" text-anchor="middle">SSC</text>
+    <text x="337" y="128" font-size="13" fill="#1f5fa8" text-anchor="middle">PIC 波導</text>
+    <circle cx="234" cy="150" r="13" fill="url(#b1-glow)"/><circle cx="234" cy="150" r="3" fill="#fff" stroke="#e8590c" stroke-width="1.6"/>
+    <path d="M234 168 V232 H200 V240" fill="none" stroke="#43885e" stroke-width="1.4" stroke-dasharray="3 4"/>
+    ${pill(200, 258, '兩側匹配：約 3 µm', '#1f7a35', '#d8f0dd', 14)}
+    <rect x="14" y="296" width="178" height="100" rx="14" fill="#fff0e1" stroke="#ead2bc"/>
+    <rect x="208" y="296" width="178" height="100" rx="14" fill="#e2edf9" stroke="#bdcfe4"/>
+    <g text-anchor="middle" font-size="14" font-weight="700">
+      <text x="103" y="323" fill="#b55116">光纖側 · 透鏡聚焦</text>
+      <text x="297" y="323" fill="#1f5fa8">晶片側 · SSC 展開</text>
+      <text x="103" y="352" fill="${INK}">10.4 → 約 3 µm</text>
+      <text x="297" y="352" fill="${INK}">0.45 → 約 3 µm</text>
+    </g>
+    <line x1="54" y1="375" x2="150" y2="375" stroke="#e8590c" stroke-width="2" marker-end="url(#b1-ar)"/>
+    <line x1="346" y1="375" x2="250" y2="375" stroke="#1f5fa8" stroke-width="2" marker-end="url(#b1-ab)"/>`);
 }
 
 // ③ 同樣偏移，大模場接收端與小模場接收端（光斑用高斯光暈；百分比由重疊積分算）
@@ -119,7 +124,7 @@ export function mount(sec) {
       h('div', { style: { fontSize: '19px', fontWeight: 700, color: '#c6d6e8' } }, text), ill);   // 計畫版：每張卡只留一句
     body.append(
       h('div', { class: 'grid g3 grow', style: { gridTemplateRows: '1fr' } },
-        card('①', '模場差一個數量級', '光纖 10.4 µm vs 矽波導 0.45 µm', pipes(), COL.fiber),
+        card('①', '模場差一個數量級', '光纖 10.4 µm vs PIC 波導 0.45 µm', pipes(), COL.fiber),
         card('②', '兩側都縮到約 3 µm', '透鏡縮光斑＋SSC 放大模場', arch(), COL.wg),
         card('③', '光點小 → 次微米容差', '1 dB 橫向容差約 ±0.5 µm', compare(), COL.ex)));
   });

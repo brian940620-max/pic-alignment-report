@@ -36,15 +36,25 @@ const server = createServer(async (req, res) => {
     if (!path.startsWith(dist + sep)) { res.writeHead(403); res.end(); return; }
     const info = await stat(path);
     if (!info.isFile()) throw new Error('Not a file');
+    const headers = { 'Content-Type': mime[extname(path)] || 'application/octet-stream', 'Cache-Control': watching ? 'no-store' : 'no-cache' };
+    if (!watching) {
+      headers.ETag = `W/"${info.size.toString(16)}-${info.mtimeMs.toString(16)}"`;
+      if ((req.headers['if-none-match'] || '').split(',').map(v => v.trim()).some(v => v === '*' || v === headers.ETag || `W/${v}` === headers.ETag)) {
+        res.writeHead(304, headers); res.end(); return;
+      }
+      headers['Content-Length'] = info.size;
+    }
+    // HEAD and an unchanged preview asset need no file read or response buffer.
+    if (req.method === 'HEAD') { res.writeHead(200, headers); res.end(); return; }
     let body = await readFile(path);
     if (watching && path.endsWith('index.html')) body = Buffer.from(body.toString().replace('</body>', `<script>let v;setInterval(async()=>{try{const n=await(await fetch('/__dev_version')).text();if(v&&v!==n)location.reload();v=n}catch{}},1000)</script></body>`));
-    res.writeHead(200, { 'Content-Type': mime[extname(path)] || 'application/octet-stream', 'Cache-Control': 'no-store' });
-    res.end(req.method === 'HEAD' ? undefined : body);
+    res.writeHead(200, headers);
+    res.end(body);
   } catch { res.writeHead(404); res.end('Not found'); }
 });
 if (watching) await build();
 else await stat(resolve(dist, 'index.html')).catch(() => { throw new Error('Run npm run build first.'); });
-server.listen(port, host, () => console.log(`Report: http://${host}:${port}${watching ? ' (watching; browser reloads after a successful build)' : ''}`));
+server.listen(port, host, () => console.log(`Report: http://${host}:${server.address().port}${watching ? ' (watching; browser reloads after a successful build)' : ''}`));
 if (watching) {
   const changed = () => { clearTimeout(timer); timer = setTimeout(() => build().catch(console.error), 150); };
   for (const dir of ['src', 'assets', 'source']) watch(resolve(root, dir), { recursive: true }, changed);

@@ -20,15 +20,14 @@ import { mountArch } from './pages/plan_arch.js';
 // 拿掉的頁：研究進度、PIC 的光模場、透鏡只是放在第幾層、結論（②）。⑥ f_measure.js 本來就沒掛。
 const CHAPTERS = [
   { id: 'ma', sp: 'SP2-1', label: '2-1 模場建模', noNav: true, pages: ['XY 平面模場建模', ['Z 軸模場建模', 'Z 軸模場建模'], ['六軸場地', '六軸場地建模'], ['PIC 邊緣耦合', 'PIC 邊緣耦合'], ['光怎麼走進晶片', '三種實作方法'], ['陣列六軸建模（計畫版）', '陣列模場與六軸建模']] },   // 最後一頁 11-02 重做（sp21_array.js），原 fa_pic.js 那頁不再用
-  { id: 'mb', sp: 'SP2-2', label: '2-2 影像粗對位', pages: ['高倍率相機', '雙視角 CNN', '最終相機模型'] },
-  { id: 'mc', sp: 'SP2-3', label: '2-3 靈敏度分析', pages: [['六軸偏差', '六軸偏差靈敏度分析'], ['透鏡光纖', '透鏡光纖靈敏度分析']] },
+  { id: 'mb', sp: 'SP2-2', label: '2-2 影像粗對位', noNav: true, pages: ['高倍相機微小失配就失焦', '雙視角CNN對上傳統影像分析', '經過訓練後模型的表現'] },
+  { id: 'mc', sp: 'SP2-3', label: '2-3 靈敏度分析', noNav: true, pages: [['六軸偏差', '六軸偏差靈敏度分析'], ['透鏡光纖', '透鏡光纖靈敏度分析']] },
   // 2-4（11-02 使用者指定）：AESC → 擾動法的極限 → 端面反射（雜訊來源）；Z 軸對位一度搬來，11-02 又改回 2-7
-  { id: 'md', sp: 'SP2-4', label: '2-4 光功率量測', pages: ['AESC', '擾動法的極限', '端面反射'] },
+  { id: 'md', sp: 'SP2-4', label: '2-4 光功率量測', noNav: true, pages: [['AESC', 'AESC 功率回授對位'], ['擾動法的極限', '擾動法的精度限制'], ['端面反射', '端面反射與功率漣漪']] },
   // 2-6：原本借用單光纖的六軸偏差頁，11-02 改成光纖陣列對 PIC 的姿態–功率配對頁（sp26_pose.js）
-  { id: 'mf', sp: 'SP2-6', label: '2-6 數據採集', pages: ['六軸系統光功率回授'] },
-  { id: 'mg', sp: 'SP2-7', label: '2-7 對位策略', pages: ['Z 軸對位', '三階段對位規劃', '陣列光纖對 PIC：對位策略', '旋轉中心與 XY 補償'] },
-  { id: 'mh', sp: 'SP2-8', label: '2-8 多通道驗證', pages: ['怎麼定義光耦合成功'] },
-  { id: 'v', sp: 'VAL', label: '實機驗證', pages: ['對位平台', '三段式對位', '化身光纖', '陣列光纖對 PIC：實機對位', '統整'] },
+  { id: 'mf', sp: 'SP2-6', label: '2-6 數據採集', noNav: true, pages: ['姿態與光功率採集'] },
+  { id: 'mg', sp: 'SP2-7', label: '2-7 對位策略', noNav: true, pages: [['Z 軸對位', 'Z軸對位策略'], '三階段對位規劃', '陣列光纖對 PIC：對位策略', '旋轉中心與 XY 補償', '怎麼定義光耦合成功'] },
+  { id: 'v', sp: 'SP2-8', label: '2-8 實機驗證', noNav: true, pages: ['對位平台', '三段式對位', '化身光纖', '陣列光纖對 PIC：實機對位', '統整'] },
 ];
 
 const deck = createDeck(document.getElementById('app'));
@@ -63,6 +62,17 @@ for (const ch of CHAPTERS) {
     sec.slide(title ? { ...s.opts, title } : s.opts, s.build);
   } } }, ctx);
   const sec = deck.sections[deck.sections.length - 1];
+  // 機台章節沿用獨立的 machine-ui，編號調整不改動設備檢視版面。
+  if (ch.sp.startsWith('SP2-') && ch.id !== 'v') sec.slides.forEach((sl, i) => {
+    sl.el.classList.add('report-ui');
+    sl.el.dataset.reportChapter = ch.id;
+    sl.el.dataset.reportPage = String(i + 1);
+  });
+  if (ch.id === 'ma') sec.slides.forEach((sl, i) => {
+    sl.el.classList.add('modeling-ui');
+    sl.el.dataset.modelPage = String(i + 1);
+  });
+  if (ch.id === 'mc') sec.slides.forEach(sl => sl.el.classList.add('sensitivity-ui'));
   if (ch.noNav) continue;   // 這一章標題列右側不放頁碼與「架構圖」鈕（Esc、→ 照樣回架構圖）
   sec.slides.forEach((sl, k) => sl.el.querySelector('.stitle').append(h('div', { class: 'sptags chapnav' },
     h('span', { class: 'cn-pos' }, `${k + 1} / ${sec.slides.length}`),
@@ -90,6 +100,8 @@ const style = h('style', null, `
 `);
 document.head.append(style);
 
+// Preserve existing links to the validation page after moving it into 2-7.
+if (location.hash === '#mh1') history.replaceState(null, '', '#mg5');
 deck.start();
 // 實機驗證的三個機台 iframe 與化身光纖 3D 很重（每個約 1 s 載入）：開檔後停在封面時就在背景建好，報告中換頁不卡
 // 六軸場地建模（2-1 第 3 頁）、六軸偏差的 3D 示意、三種實作方法（2-1 第 5 頁）的透鏡 3D 也一起（第一次建各約 0.1–0.3 s）

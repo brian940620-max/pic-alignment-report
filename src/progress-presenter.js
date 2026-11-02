@@ -31,6 +31,13 @@ export function enhanceProgress(body) {
         h('div',{class:'talk-equation'},'Δx = Z · tan θ'),
         h('p',null,'調整角度與間距，同時觀察光點位置、幾何關係與耦合損失。'));
       col.prepend(intro);
+      if (slide.classList.contains('pose-field-ui')) {
+        const controls=h('div',{class:'pose-controls'});
+        [...col.children].filter(e=>e.classList.contains('seg')||e.classList.contains('slider')).forEach(e=>controls.append(e));
+        const live=col.querySelector('.eqlive');
+        parts[end-1].textContent='即時模型核對';
+        col.append(controls,h('div',{class:'pose-live'},parts[end-1],live));
+      }
       mode('完整推導','show-derivation');body.prepend(toolbar);
     }
     if(page===6||page===7){
@@ -40,23 +47,17 @@ export function enhanceProgress(body) {
       sliders.forEach((input,i)=>input.addEventListener('input',()=>{
         body.querySelectorAll('.slider').forEach(e=>e.classList.remove('axis-active'));
         input.closest('.slider')?.classList.add('axis-active');
-        const name=input.closest('.slider')?.querySelector('.sl-top')?.textContent||'';
+        const name=input.closest('.slider')?.querySelector('.sl-label')?.textContent||'';
         status.textContent='正在觀察：'+name;
         slide.dataset.activeAxis=String(i);
-      }));
-      if(page===7){
-        const presets=h('div',{class:'demo-presets'});
-        const set=(index,value)=>{sliders[index].value=String(value);sliders[index].dispatchEvent(new Event('input',{bubbles:true}));};
-        const reset=()=>[...body.querySelectorAll('button')].find(b=>b.textContent==='全部歸零').click();
-        const preset=(label,fn)=>presets.append(h('button',{type:'button',class:'btn ghost',onclick:()=>{
-          reset();fn();presets.querySelectorAll('button').forEach(b=>b.classList.toggle('on',b.textContent===label));
-        }},label));
-        const circular=()=>[...body.querySelectorAll('.seg button')].find(b=>b.textContent==='圓形模場').click();
-        preset('橫向偏移',()=>{circular();set(0,1);});
-        preset('角度偏差',()=>{circular();set(4,3);});
-        preset('橢圓滾轉',()=>{[...body.querySelectorAll('.seg button')].find(b=>b.textContent.includes('橢圓模場')).click();set(5,45);});
-        body.querySelector('.six').before(h('div',{class:'preset-title'},'演示情境'),presets);
-      }
+      }, { capture: true }));
+      const reset = [...body.querySelectorAll('button')].find(button => button.textContent === '全部歸零');
+      reset?.addEventListener('click', () => {
+        delete slide.dataset.activeAxis;
+        body.querySelectorAll('.slider').forEach(e => e.classList.remove('axis-active'));
+        status.textContent = '調整參數，觀察光路與耦合變化';
+      }, { capture: true });
+
     }
     if(page===2){
       const nodes=body.querySelectorAll('.tl .nd');

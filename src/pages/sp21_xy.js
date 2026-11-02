@@ -1,31 +1,17 @@
 // 計畫版 2-1 第 1 頁「XY 平面模場建模」（2026-11-02）：照 10-01 進度報告（Desktop/1001_v3.pptx 第 3、8 頁）的共同模擬平台
-//   主峰＝圓對稱高斯 σ 1.5 µm（Joyce & DeLoach 1984）；背景 120×120 µm、12 個靜態假峰（各 0.1–3%、σ 0.5–2 µm、
+//   2D／3D 共用完整 120×120 µm 場景及 dB 色階；3D 高度以 P^0.1 壓縮動態範圍，保留鐘形輪廓。主峰＝圓對稱高斯 σ 1.5 µm（Joyce & DeLoach 1984）；12 個靜態假峰（各 0.1–3%、σ 0.5–2 µm、
 //   離主峰 ≥8 µm、彼此 ≥6 µm、疊加 ≤3%）；量測雜訊 0.3%。設定照 2D_alignment_sim/production2DBenchmarkConfig.m。
 // 假峰位置用本頁自己的亂數（不是 MATLAB 的種子），只示意分佈。
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { h, fitCanvas, loop, clamp } from '../ui.js';
 import { tex } from '../tex.js';
+import { fieldRGB as terrainColor, writeFieldPixel } from '../presentation-palette.js';
+import { makeScene } from '../xy-field.js';
 
-const SIG = 1.5, HALF = 60, NB = 12;
+const SIG = 1.5, HALF = 60;
 const PAR = [[53, 42, 135], [15, 92, 221], [20, 129, 214], [6, 164, 202], [46, 183, 164], [135, 191, 119], [209, 187, 89], [254, 200, 50], [249, 251, 14]];
 const parula = (t) => { t = clamp(t, 0, 1) * (PAR.length - 1); const i = Math.min(PAR.length - 2, Math.floor(t)), f = t - i; return PAR[i].map((v, k) => v + (PAR[i + 1][k] - v) * f); };
-
-function makeScene(seed) {   // 主峰位置＋12 個假峰（拒絕取樣，同 createProduction2DScenario 的規則）
-  let s = seed; const u = () => (s = (s * 16807) % 2147483647) / 2147483647;
-  const ang = u() * 2 * Math.PI, rr = 54 * Math.sqrt(u());
-  const main = [rr * Math.cos(ang), rr * Math.sin(ang)], bumps = [];
-  while (bumps.length < NB) {
-    const p = [(u() * 2 - 1) * 59, (u() * 2 - 1) * 59];
-    if (Math.hypot(p[0] - main[0], p[1] - main[1]) < 8 || bumps.some((b) => Math.hypot(p[0] - b.x, p[1] - b.y) < 6)) continue;
-    bumps.push({ x: p[0], y: p[1], a: 0.001 + u() * 0.029, sx: 0.5 + u() * 1.5, sy: 0.5 + u() * 1.5 });
-  }
-  const bump = (x, y) => bumps.reduce((acc, b) => acc + b.a * Math.exp(-((x - b.x) ** 2) / (2 * b.sx ** 2) - ((y - b.y) ** 2) / (2 * b.sy ** 2)), 0);
-  let mx = 0; for (let x = -HALF; x <= HALF; x += 0.5) for (let y = -HALF; y <= HALF; y += 0.5) mx = Math.max(mx, bump(x, y));
-  const k = mx > 0.03 ? 0.03 / mx : 1;   // 疊加上限 3%
-  const P = (x, y) => Math.exp(-((x - main[0]) ** 2 + (y - main[1]) ** 2) / (2 * SIG * SIG)) + k * bump(x, y);
-  return { main, bumps, P };
-}
 
 const CSS = `
 .sp21 .card.dark { padding:10px 14px; }
@@ -45,49 +31,129 @@ const CSS = `
 const pane = (c, tag) => { c.style.position = 'absolute'; return h('div', { class: 'pane fill' }, c, tag ? h('div', { class: 'tag' }, tag) : null); };
 
 function xySlide(body) {
-  const st = { mode: 'lin', seed: 20260920, sc: null };
-  st.sc = makeScene(st.seed);
-  // ---- 3D 高斯山峰（主峰附近） ----
+  const st = { mode: 'full', seed: 20260920, sc: makeScene(20260920) };
+  // Color and measured power stay shared. Log-height turns Gaussians into clipped
+  // paraboloids; a power transform keeps a smooth bell and reveals weak peaks.
+  const N = 360, FLOOR_DB = -75, HEIGHT = 2.6, HEIGHT_POWER = .1;
+  const colorLevel = power => clamp(1 - 10 * Math.log10(Math.max(power, 1e-12)) / FLOOR_DB, 0, 1);
+  const surfaceHeight = power => HEIGHT * Math.pow(Math.max(0, power), HEIGHT_POWER);
+  let field;
   const holder = h('div', { class: 'pane fill' });
   const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
   renderer.setPixelRatio(Math.min(2, window.devicePixelRatio || 1));
-  holder.append(renderer.domElement, h('div', { class: 'tag' }, '主峰：高斯山峰（拖曳旋轉）'));
-  const scene = new THREE.Scene(), cam = new THREE.PerspectiveCamera(38, 1, 0.1, 100);
-  cam.position.set(14, 12, 16);
-  const ctl = new OrbitControls(cam, renderer.domElement); ctl.enableDamping = true; ctl.target.set(0, 0.9, 0); ctl.autoRotate = true; ctl.autoRotateSpeed = 0.8;
-  scene.add(new THREE.AmbientLight(0xffffff, 0.75)); const dl = new THREE.DirectionalLight(0xffffff, 1.1); dl.position.set(4, 10, 6); scene.add(dl);
-  const N = 90, geo = new THREE.PlaneGeometry(10, 10, N, N); geo.rotateX(-Math.PI / 2);
+  renderer.domElement.setAttribute('aria-label', '與右側熱圖同步的三維功率地形，可拖曳旋轉');
+  holder.append(renderer.domElement);
+  // Orthographic projection makes the top view line up with the 2D map, regardless of peak height.
+  const scene = new THREE.Scene(), cam = new THREE.OrthographicCamera(-10, 10, 7, -7, 0.1, 100);
+  const fullGroup = new THREE.Group(), peakGroup = new THREE.Group();
+  scene.add(fullGroup, peakGroup); peakGroup.visible = false;
+  let topView = false;
+  cam.position.set(9, 9, 15);
+  const ctl = new OrbitControls(cam, renderer.domElement);
+  ctl.enableDamping = true; ctl.target.set(0, 1.6, 0);
+  ctl.autoRotate = !matchMedia('(prefers-reduced-motion: reduce)').matches;
+  ctl.autoRotateSpeed = 1.2;
+  ctl.minDistance = 9; ctl.maxDistance = 35; ctl.maxPolarAngle = Math.PI * 0.48;
+  const geo = new THREE.PlaneGeometry(10, 10, N, N); geo.rotateX(-Math.PI / 2);
   geo.setAttribute('color', new THREE.BufferAttribute(new Float32Array(geo.attributes.position.count * 3), 3));
-  const mesh = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.55, metalness: 0.05, side: THREE.DoubleSide }));
-  const wire = new THREE.LineSegments(new THREE.WireframeGeometry(new THREE.PlaneGeometry(10, 10, 30, 30).rotateX(-Math.PI / 2)), new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.12 }));
-  scene.add(mesh, wire);
-  const ring = (r, col) => { const g = new THREE.BufferGeometry().setFromPoints([...Array(97)].map((_, i) => new THREE.Vector3(Math.cos(i / 96 * 2 * Math.PI) * r, 0.01, Math.sin(i / 96 * 2 * Math.PI) * r))); return new THREE.Line(g, new THREE.LineBasicMaterial({ color: col })); };
-  const rings = new THREE.Group(); scene.add(rings);
-  function shape() {   // 高度＝P（線性，真實形狀）；dB 模式程式保留，計畫版只用線性
-    const span = st.mode === 'lin' ? 4 * SIG : 6 * SIG, pos = geo.attributes.position, col = geo.attributes.color, wpos = wire.geometry.attributes.position;
-    const zOf = (x, y) => { const p = Math.exp(-(x * x + y * y) / (2 * SIG * SIG)); return st.mode === 'lin' ? p : clamp((10 * Math.log10(Math.max(p, 1e-6)) + 30) / 30, 0, 1); };
-    const fill = (pa, withCol) => { for (let i = 0; i < pa.count; i++) {
-      const gx = (pa.getX(i) / 5) * span, gy = (pa.getZ(i) / 5) * span, z = zOf(gx, gy);
-      pa.setY(i, z * 2.4); if (withCol) { const c = parula(z); col.setXYZ(i, c[0] / 255, c[1] / 255, c[2] / 255); } } pa.needsUpdate = true; };
-    // 線框用原始平面座標重算（WireframeGeometry 的頂點是 x,z 平面）
-    fill(pos, true); geo.computeVertexNormals(); col.needsUpdate = true;
-    for (let i = 0; i < wpos.count; i++) { const gx = (wpos.getX(i) / 5) * span, gy = (wpos.getZ(i) / 5) * span; wpos.setY(i, zOf(gx, gy) * 2.4 + 0.01); } wpos.needsUpdate = true;
-    rings.clear();
-    for (const [r, c] of [[SIG * Math.sqrt(-2 * Math.log(0.99)), 0xffffff], [SIG * Math.sqrt(-2 * Math.log(10 ** -0.1)), 0xff7a1a]]) { const g = ring((r / span) * 5, c); rings.add(g); }
+  // Soft surface lighting reveals slopes; scalar color mapping is shared with the heatmap.
+  const mesh = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.62, metalness: 0.08, side: THREE.DoubleSide }));
+  fullGroup.add(mesh);
+  const base = new THREE.Mesh(new THREE.BoxGeometry(10.05, 0.16, 10.05), new THREE.MeshStandardMaterial({ color: 0x162c40, roughness: 0.85 }));
+  base.position.y = -0.10; fullGroup.add(base);
+  const grid = new THREE.GridHelper(10, 20, 0x536c86, 0x263d54); grid.position.y = .006; grid.material.transparent = true; grid.material.opacity = .38; fullGroup.add(grid);
+  function label(text, x, y, z) {
+    const c = document.createElement('canvas'); c.width = 256; c.height = 64;
+    const g = c.getContext('2d'); g.fillStyle = '#c9dbef'; g.font = '24px system-ui'; g.textAlign = 'center'; g.fillText(text, 128, 42);
+    const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(c), depthTest: false }));
+    sprite.scale.set(4.6, 1.15, 1); sprite.position.set(x, y, z); fullGroup.add(sprite);
   }
-  const fit3 = () => { const w = holder.clientWidth, H = holder.clientHeight; if (w < 2 || H < 2) return; renderer.setSize(w, H, false); renderer.domElement.style.width = '100%'; renderer.domElement.style.height = '100%'; cam.aspect = w / H; cam.updateProjectionMatrix(); };
+  label('X (µm) → +60', 0, 0, 5.8); label('Y (µm) ↑ +60', -6, 0, 0);
+  const marker = (color, radius) => { const m = new THREE.Mesh(new THREE.SphereGeometry(radius, 16, 12), new THREE.MeshBasicMaterial({ color, depthTest: false })); m.renderOrder = 2; fullGroup.add(m); return m; };
+  const mainMarker = marker(0xff3df2, 0.09), probeMarker = marker(0xffffff, 0.075);
+  probeMarker.visible = false;
+  const pointAt = (m, x, y) => m.position.set(x / HALF * 5, surfaceHeight(st.sc.P(x, y)) + 0.09, -y / HALF * 5);
+  const sceneHeading = h('span', null, '完整搜尋區 · 3D 功率地形');
+  // Preserve the original linear Gaussian close-up as a separate, reusable mesh.
+  const peakGeo = new THREE.PlaneGeometry(10, 10, 90, 90); peakGeo.rotateX(-Math.PI / 2);
+  const peakColors = new Float32Array(peakGeo.attributes.position.count * 3), peakPos = peakGeo.attributes.position;
+  const gaussian = (x, z) => Math.exp(-((x / 5 * 6) ** 2 + (z / 5 * 6) ** 2) / (2 * SIG * SIG));
+  for (let i = 0; i < peakPos.count; i++) {
+    const v = gaussian(peakPos.getX(i), peakPos.getZ(i)); peakPos.setY(i, v * 2.4);
+    const c = parula(v); c.forEach((value, k) => { peakColors[i * 3 + k] = value / 255; });
+  }
+  peakGeo.setAttribute('color', new THREE.BufferAttribute(peakColors, 3)); peakGeo.computeVertexNormals();
+  peakGroup.add(new THREE.Mesh(peakGeo, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.55, metalness: 0.05, side: THREE.DoubleSide })));
+  const wireGeo = new THREE.WireframeGeometry(new THREE.PlaneGeometry(10, 10, 30, 30).rotateX(-Math.PI / 2));
+  const wp = wireGeo.attributes.position;
+  for (let i = 0; i < wp.count; i++) wp.setY(i, gaussian(wp.getX(i), wp.getZ(i)) * 2.4 + 0.01);
+  peakGroup.add(new THREE.LineSegments(wireGeo, new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.12 })));
+  for (const [r, color] of [[SIG * Math.sqrt(-2 * Math.log(0.99)), 0xffffff], [SIG * Math.sqrt(-2 * Math.log(10 ** -0.1)), 0xff7a1a]]) {
+    const points = Array.from({ length: 97 }, (_, i) => new THREE.Vector3(Math.cos(i / 96 * 2 * Math.PI) * r / 6 * 5, 0.01, Math.sin(i / 96 * 2 * Math.PI) * r / 6 * 5));
+    peakGroup.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(points), new THREE.LineBasicMaterial({ color })));
+  }
+  scene.add(new THREE.AmbientLight(0xffffff, 0.75));
+  const light = new THREE.DirectionalLight(0xffffff, 1.1); light.position.set(4, 10, 6); scene.add(light);
+  const rim = new THREE.DirectionalLight(0x8cdaec, 0.65); rim.position.set(-6, 7, -4); scene.add(rim);
+  const describe = () => {
+    sceneHeading.textContent = st.mode === 'full' ? '完整搜尋區 · 3D 功率地形' : '原版主峰 · 高斯山峰特寫';
+    renderer.domElement.title = st.mode === 'full' ? '3D 高度 ∝ P^0.1，保留平滑鐘形並放大弱峰；峰高與視覺寬度不代表原始功率或模場寬度。精確功率請點選右側熱圖。' : '主峰周圍 ±6 µm；高度為相對功率（線性）。';
+  };
+  function shape() {
+    const pos = geo.attributes.position, col = geo.attributes.color, color = new THREE.Color();
+    field = new Float32Array((N + 1) ** 2);
+    const xs = Array.from({ length: N + 1 }, (_, i) => -HALF + i * (2 * HALF / N));
+    const ys = Array.from({ length: N + 1 }, (_, j) => HALF - j * (2 * HALF / N));
+    const powers = st.sc.sampleGrid(xs, ys);
+    for (let j = 0; j <= N; j++) for (let i = 0; i <= N; i++) {
+      const k = j * (N + 1) + i;
+      const power = powers[k], v = field[k] = colorLevel(power), c = terrainColor(v);
+      // PlaneGeometry's first row has world Z=-5: positive model Y is -world Z.
+      pos.setY(k, surfaceHeight(power));
+      color.setRGB(c[0] / 255, c[1] / 255, c[2] / 255, THREE.SRGBColorSpace);
+      col.setXYZ(k, color.r, color.g, color.b);
+    }
+    pos.needsUpdate = true; col.needsUpdate = true; geo.computeBoundingSphere(); geo.computeVertexNormals();
+    pointAt(mainMarker, ...st.sc.main); probeMarker.visible = false;
+    describe();
+  }
+  const syncRotation = () => { rotateButton.textContent = ctl.autoRotate ? '暫停旋轉' : '自動旋轉'; rotateButton.setAttribute('aria-pressed', String(ctl.autoRotate)); };
+  // Clear angular inertia before a preset so the top view remains exactly aligned with the map.
+  const settleControls = () => { ctl.autoRotate = false; ctl.enableDamping = false; ctl.update(); ctl.enableDamping = true; };
+  const view3D = () => { settleControls(); topView = false; ctl.target.set(0, st.mode === 'full' ? 1.6 : 1, 0); cam.position.set(...(st.mode === 'full' ? [9, 9, 15] : [12, 13, 15])); cam.zoom = 1; ctl.autoRotate = !matchMedia('(prefers-reduced-motion: reduce)').matches; syncRotation(); ctl.update(); fit3(); };
+  const viewTop = () => { settleControls(); topView = true; syncRotation(); ctl.target.set(0, 0, 0); cam.position.set(0, 22, 0.001); cam.zoom = 1; ctl.update(); fit3(); };
+  const modeButtons = ['full', 'peak'].map((mode, i) => h('button', {
+    type: 'button', class: mode === st.mode ? 'on' : '', 'aria-pressed': String(mode === st.mode),
+    onclick: () => {
+      st.mode = mode; fullGroup.visible = mode === 'full'; peakGroup.visible = mode === 'peak';
+      modeButtons.forEach((b, k) => { b.classList.toggle('on', k === i); b.setAttribute('aria-pressed', String(k === i)); });
+      renderer.domElement.setAttribute('aria-label', mode === 'full' ? '與右側熱圖同步的三維功率地形，可拖曳旋轉' : '原版主峰高斯山峰特寫，線性高度，可拖曳旋轉');
+      describe(); view3D();
+    },
+  }, mode === 'full' ? '全域同步' : '原版主峰'));
+  const rotateButton = h('button', { type: 'button', class: 'btn ghost', onclick: () => {
+    if (topView) { view3D(); ctl.autoRotate = true; }
+    else ctl.autoRotate = !ctl.autoRotate;
+    syncRotation(); anim.start();
+  } });
+  syncRotation();
+  const viewButtons = h('div', { class: 'row xy-view-buttons' },
+    h('button', { type: 'button', class: 'btn ghost', onclick: view3D }, '立體視角'),
+    h('button', { type: 'button', class: 'btn ghost', onclick: viewTop }, '俯視對照'), rotateButton);
+  const fit3 = () => { const w = holder.clientWidth, H = holder.clientHeight; if (w < 2 || H < 2) return; renderer.setSize(w, H, false); renderer.domElement.style.width = '100%'; renderer.domElement.style.height = '100%'; const half = topView ? 6.5 : st.mode === 'full' ? 5.8 : 7; cam.left = -half * w / H; cam.right = half * w / H; cam.top = half; cam.bottom = -half; cam.updateProjectionMatrix(); if (body.closest('.slide').classList.contains('on')) anim.start(); };
   new ResizeObserver(fit3).observe(holder);
-  const anim = loop(() => { ctl.update(); renderer.render(scene, cam); });
+  const anim = loop((dt) => { const moved = ctl.update(dt); renderer.render(scene, cam); if (!ctl.autoRotate && !moved) anim.stop(); });
+  ctl.addEventListener('change', () => { if (body.closest('.slide').classList.contains('on')) anim.start(); });
 
   // ---- 120×120 µm 地圖（dB） ----
-  const cm = h('canvas'), M = fitCanvas(cm, () => { mapImg = null; drawMap(); });
+  const cm = h('canvas'), M = fitCanvas(cm, () => drawMap());
   let mapImg = null, probe = null;
-  const rd = h('div', { class: 'rd2' }, '點地圖看該點功率');
+  const rd = h('div', { class: 'rd2', role: 'status', 'aria-live': 'polite' });
   function drawMap() {
     const { ctx, w, h: H } = M; if (!w) return;
-    const sz = Math.min(w - 80, H - 30), ox = 34, oy = (H - sz) / 2, X = (x) => ox + ((x + HALF) / (2 * HALF)) * sz, Y = (y) => oy + ((HALF - y) / (2 * HALF)) * sz;
-    if (!mapImg) { const n = 241, img = new ImageData(n, n);
-      for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) { const x = -HALF + i * 0.5, y = HALF - j * 0.5, db = 10 * Math.log10(Math.max(st.sc.P(x, y), 1e-8)); const c = parula(1 + db / 75), o = (j * n + i) * 4; img.data[o] = c[0]; img.data[o + 1] = c[1]; img.data[o + 2] = c[2]; img.data[o + 3] = 255; }
+    const sz = Math.min(w - 80, H - 30), ox = (w - sz - 12) / 2, oy = (H - sz) / 2, X = (x) => ox + ((x + HALF) / (2 * HALF)) * sz, Y = (y) => oy + ((HALF - y) / (2 * HALF)) * sz;
+    if (!mapImg) { const n = N + 1, img = new ImageData(n, n);
+      for (let k = 0; k < field.length; k++) writeFieldPixel(img.data, k * 4, field[k]);
       mapImg = document.createElement('canvas'); mapImg.width = n; mapImg.height = n; mapImg.getContext('2d').putImageData(img, 0, 0); }
     ctx.fillStyle = '#0b1426'; ctx.fillRect(0, 0, w, H);
     ctx.imageSmoothingEnabled = true; ctx.drawImage(mapImg, ox, oy, sz, sz);
@@ -95,7 +161,7 @@ function xySlide(body) {
     ctx.font = '12px system-ui, "Microsoft JhengHei", sans-serif'; ctx.fillStyle = '#93a6c6'; ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
     for (const v of [-60, -30, 0, 30, 60]) { ctx.fillText(v, ox - 4, Y(v)); ctx.textAlign = 'center'; ctx.textBaseline = 'top'; ctx.fillText(v, X(v), oy + sz + 3); ctx.textAlign = 'right'; ctx.textBaseline = 'middle'; }
     // 色條
-    for (let i = 0; i < sz; i++) { const c = parula(1 - i / sz); ctx.fillStyle = `rgb(${c[0] | 0},${c[1] | 0},${c[2] | 0})`; ctx.fillRect(ox + sz + 6, oy + i, 8, 1.5); }
+    for (let i = 0; i < sz; i++) { const c = terrainColor(1 - i / sz); ctx.fillStyle = `rgb(${c[0] | 0},${c[1] | 0},${c[2] | 0})`; ctx.fillRect(ox + sz + 6, oy + i, 8, 1.5); }
     ctx.fillStyle = '#93a6c6'; ctx.textAlign = 'left'; ctx.fillText('0 dB', ox + sz + 2, oy - 8); ctx.fillText('−75', ox + sz + 17, oy + sz - 6);
     const [mx, my] = st.sc.main; ctx.fillStyle = '#ff3df2'; ctx.font = '18px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('★', X(mx), Y(my));
     if (probe) { ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(X(probe[0]), Y(probe[1]), 7, 0, 7); ctx.stroke(); ctx.lineWidth = 1; }
@@ -107,24 +173,30 @@ function xySlide(body) {
     const x = -HALF + ((px - g.ox) / g.sz) * 2 * HALF, y = HALF - ((py - g.oy) / g.sz) * 2 * HALF;
     if (Math.abs(x) > HALF || Math.abs(y) > HALF) return;
     probe = [x, y]; const p = st.sc.P(x, y), d = Math.hypot(x - st.sc.main[0], y - st.sc.main[1]);
+    pointAt(probeMarker, x, y); probeMarker.visible = true;
+    anim.start();
     rd.innerHTML = `(${x.toFixed(1)}, ${y.toFixed(1)}) µm　功率 <b>${p >= 1e-4 ? (p * 100).toPrecision(3) + '%' : p.toExponential(1)}</b>（${(10 * Math.log10(Math.max(p, 1e-12))).toFixed(1)} dB）　離主峰 <b>${d.toFixed(1)} µm</b>`;
     drawMap();
   });
 
-  const bNew = h('button', { type: 'button', class: 'btn ghost', onclick: () => { st.seed = (st.seed * 48271) % 2147483647; st.sc = makeScene(st.seed); mapImg = null; probe = null; rd.textContent = '點地圖看該點功率'; drawMap(); } }, '換一組場景');
+  const bNew = h('button', { type: 'button', class: 'btn ghost', onclick: () => { st.seed = (st.seed * 48271) % 2147483647; st.sc = makeScene(st.seed); mapImg = null; probe = null; shape(); rd.textContent = ''; drawMap(); renderer.render(scene, cam); } }, '換一組場景');
   const kpi = (v, l) => h('div', { class: 'kp' }, h('b', null, v), h('span', null, l));
+  holder.append(h('div', { class: 'seg xy-modes', role: 'group', 'aria-label': '3D 顯示模式' }, modeButtons));
+  const mapPane = pane(cm); mapPane.append(rd);
 
-  body.append(h('div', { class: 'grid grow', style: { gridTemplateColumns: '1fr 0.95fr 0.82fr' } },
-    h('div', { class: 'card dark col', style: { gap: '6px' } }, holder),
-    h('div', { class: 'card dark col', style: { gap: '6px' } },
+  body.append(h('div', { class: 'grid grow xy-layout' },
+    h('div', { class: 'card dark col xy-peak' },
+      h('div', { class: 'row xy-heading' }, sceneHeading, viewButtons),
+      holder),
+    h('div', { class: 'card dark col xy-map' },
       h('div', { class: 'row', style: { justifyContent: 'space-between' } }, h('span', { style: { color: '#fff', fontWeight: 700 } }, '整個搜尋區 120 × 120 µm（dB）'), bNew),
-      pane(cm)),
-    h('div', { class: 'col' },
-      h('div', { class: 'card dark col', style: { gap: '2px' } },
-        h('div', { class: 'k-h' }, 'XY 光斑＝二維高斯'),
+      mapPane),
+    h('div', { class: 'xy-insights' },
+      h('div', { class: 'card dark col xy-formula', style: { gap: '2px' } },
+        h('div', { class: 'k-h' }, '主峰模型：二維高斯'),
         tex('P(x,y)=A\\,\\exp\\!\\left[-\\frac{(x-x_0)^2+(y-y_0)^2}{2\\sigma^2}\\right]'),
         tex('\\sigma=\\tfrac{1}{2}\\sqrt{w_1^2+w_2^2}', 'sm')),
-      h('div', { class: 'card dark fill kps' },
+      h('div', { class: 'kps xy-metrics' },
         kpi('1.5 µm', 'σ（模擬設定）'), kpi('0.21 µm', '損耗 1% 的容差'), kpi('1.02 µm', '損耗 1 dB 的容差'), kpi('3%', '假峰最高（相對主峰）')),
       h('div', { class: 'src' }, 'W. B. Joyce, B. C. DeLoach, Appl. Opt. 23, 4187 (1984)'))));
   body.prepend(h('style', null, CSS));

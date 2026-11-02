@@ -70,6 +70,9 @@ async function buildPlatform() {
   if (!m) throw new Error('報價網頁找不到 module script');
   const must = (s, a, b) => { if (!s.includes(a)) throw new Error('報價網頁找不到：' + a); return s.replace(a, b); };
   let code = m[1];
+  // The embedded report owns scheduling; the standalone quotation keeps its loop.
+  code = must(code, 'function loop(now){requestAnimationFrame(loop);', 'function loop(now){');
+  code = must(code, 'refresh();requestAnimationFrame(loop);', 'refresh();');
   code = must(code, "const dark=matchMedia('(prefers-color-scheme: dark)').matches;", 'const dark=true;');
   // 老師的配置是 3+3+6：報價網頁的 P-616（XYZ 三軸）在簡報裡換成 6 軸奈米壓電（型號待定，外型與高度沿用 P-616 當示意，
   // 旋轉中心維持在光纖端面）。壓電的三個角度軸＝夾在壓電與快換座之間、以光纖端面為中心的 M.pzR。報價網頁原檔不動。
@@ -133,7 +136,8 @@ const r = await build({
   write: false, target: 'es2020', legalComments: 'none', loader: { '.html': 'text' },
 });
 const js = r.outputFiles[0].text.replace(/<\/script>/gi, '<\\/script>');
-const css = readFileSync('src/style.css', 'utf8') + '\n' + readFileSync('src/progress-ui.css', 'utf8') + '\n' + readFileSync('src/edge-ui.css', 'utf8') + '\n' + readFileSync('src/array-ui.css', 'utf8') + '\n' + readFileSync('src/machine-ui.css', 'utf8');
+const css = ['style', 'progress-ui', 'edge-ui', 'array-ui', 'machine-ui', 'modeling-ui', 'camera-ui', 'sensitivity-ui', 'report-ui', 'measurement-ui']
+  .map((name) => readFileSync(`src/${name}.css`, 'utf8')).join('\n');
 const tpl = readFileSync('src/template.html', 'utf8');
 const html = tpl.replace('/*CSS*/', () => css).replace('/*JS*/', () => js).replace(/\r\n?/g, '\n');
 writeFileSync('dist/index.html', html);

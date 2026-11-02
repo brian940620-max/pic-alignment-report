@@ -13,6 +13,7 @@ import { C3D_CSS } from '../couple3d.js';
 import { XYComp3D } from '../xycomp3d.js';
 import { FA8, etaFA, peakFA, tol1dB as tolFA8, pivotX, facetSpot, rotR } from '../fa8.js';
 import { jet } from '../field6.js';
+import { buildValidation } from './sp28_validation.js';
 
 export const PM = { wf: 1.75, WD: 0, wgx: 1.5, wgy: 1.5 };
 // 各頁底部出處（期刊論文為主；PI 為廠商技術文章，標明非期刊）
@@ -38,13 +39,13 @@ export const S = { N: 8, P: 127 };
 const span = () => (S.N - 1) * S.P;
 
 // 第 i 個通道（0 起算）的偏移與效率
-export function chan(i, o) {
-  const x = i * S.P, c = o.pivot || { x: 0, y: 0 }, th = o.thz || 0, thy = o.thy || 0;
+export function chan(i, o, config = S) {
+  const x = i * config.P, c = o.pivot || { x: 0, y: 0 }, th = o.thz || 0, thy = o.thy || 0;
   const rx = c.x + Math.cos(th) * (x - c.x) - Math.sin(th) * (0 - c.y), ry = c.y + Math.sin(th) * (x - c.x) + Math.cos(th) * (0 - c.y);
   const ox = rx - x + (o.dx || 0), oy = ry + (o.dy || 0), gap = (o.g0 || 0) + x * Math.sin(thy);
   return { x, ox, oy, gap, e: eta(PM, { dx: ox, dy: oy, gap, tx: thy, ty: 0 }) };
 }
-export const chans = (o) => Array.from({ length: S.N }, (_, i) => chan(i, o));
+export const chans = (o, config = S) => Array.from({ length: config.N }, (_, i) => chan(i, o, config));
 
 // 1 dB 橫向容差與對應的 θz 容差
 function tol1dB() {
@@ -90,7 +91,13 @@ function drawBars(ctx, box, C, o = {}) {
   C.forEach((c, i) => {
     const x = L + ((i + 0.5) / S.N) * (R - L), v = dB(c.e), col = v > ref ? '#69db7c' : v > dB(PEAK) - 3 ? '#ffd43b' : '#ff6b6b';
     ctx.fillStyle = col; ctx.fillRect(x - bw / 2, T, bw, Y(v) - T);
-    if (S.N <= 16) { ctx.fillStyle = '#dfe8fa'; ctx.textAlign = 'center'; ctx.textBaseline = 'top'; ctx.font = font(11.5); ctx.fillText(v < lo ? `< ${lo}` : v.toFixed(2), x, Y(v) + 3); }
+    if (S.N <= 16) {
+      const label = v < lo ? `< ${lo}` : v.toFixed(2), y = Math.min(Y(v) + 3, B - 19);
+      ctx.font = font(11.5); ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+      // Keep clipped bar values above the axis, distinct from channel numbers.
+      if (y < Y(v)) { const tw = ctx.measureText(label).width + 8; ctx.fillStyle = '#0c1b2deb'; ctx.fillRect(x - tw / 2, y - 2, tw, 17); }
+      ctx.fillStyle = '#dfe8fa'; ctx.fillText(label, x, y);
+    }
     if (S.N <= 16 || i % 4 === 0 || i === S.N - 1) { ctx.fillStyle = '#93a6c6'; ctx.textBaseline = 'top'; ctx.font = font(12); ctx.fillText(`${i + 1}`, x, B + 4); }
   });
   ctx.fillStyle = '#fff'; ctx.font = font(14, 600); ctx.textAlign = 'left'; ctx.textBaseline = 'top'; ctx.fillText(o.title || '每個通道的耦合效率（dB，越短越好）', L0 + 8, T0 + 6);
@@ -108,9 +115,9 @@ export function mount(sec, ctx) {
   mountViews({ slide: (opts, build) => slides.push({ opts, build }) }, ctx);
   const groups = [
     { title: '陣列模場與六軸建模', ids: [0, 1], labels: ['通道光斑與六軸偏差', '整排幾何與容差'], model: '透鏡陣列模型 · 8 通道 · WD 14 µm（假設）' },
-    { title: '陣列光纖對 PIC：對位策略', ids: [2], model: 'UHNA 示意模型 · 光腰在光纖端面' },
-    { title: '旋轉中心與 XY 補償', ids: [3, 4], labels: ['偏移與補償量', 'XY 補回：3D 演示'], model: 'UHNA 示意模型 · 光腰在光纖端面' },
-    { title: '怎麼定義光耦合成功', ids: [5], model: 'UHNA 示意模型 · 1 dB 為本報告判定門檻' },
+    { title: '陣列光纖對 PIC：對位策略', ids: [2] },
+    { title: '旋轉中心與 XY 補償', ids: [3, 4], labels: ['偏移與補償量', 'XY 補回：3D 演示'] },
+    { title: '怎麼定義光耦合成功', ids: [5] },
   ];
   groups.forEach(group => sec.slide({ title: group.title, sub: '' }, body => {
     body.closest('.slide').classList.add('edge-ui', 'array-ui');
@@ -128,8 +135,8 @@ export function mount(sec, ctx) {
       const button = h('button', { type: 'button', 'aria-pressed': String(i === 0), onclick: () => activate(i) }, label);
       buttons.push(button); return button;
     })));
-    toolbar.append(h('div', { class: 'array-model' }, group.model));
-    body.append(toolbar);
+    if (group.model) toolbar.append(h('div', { class: 'array-model' }, group.model));
+    if (toolbar.childElementCount) body.append(toolbar);
     group.ids.forEach((id, i) => {
       const pane = h('div', { class: `array-pane array-view-${id + 1}` });
       body.append(pane); panes.push(pane); pane.hidden = i !== 0;
@@ -386,17 +393,17 @@ function mountViews(sec, ctx) {
   sec.slide({ title: '陣列光纖對 PIC：對位策略', sub: '' }, (body) => {
     body.append(h('style', null, CSS));
     const STEPS = [
-      ['① 對準第 1 通道', '把第 1 通道當成單根光纖，用 ① 的三階段（粗動 → 相機 → 光訊號）對好'],
-      ['② 以第 1 通道為圓心轉 θz', '第 1 通道不動，越外側的通道移動越多'],
-      ['③ 量第 N 通道找峰值', '一邊轉一邊看最後一個通道的光強度，最亮的位置就是 θz 對準'],
-      ['④ 全通道耦合功率', '第 N 通道對好，中間通道通常跟著對好；最後再逐一確認每個通道'],
+      ['① 對準第 1 通道', '沿用三階段對位'],
+      ['② 繞第 1 通道轉 θz', '固定首端，調整外側通道'],
+      ['③ 尋找末端功率峰值', '量第 N 通道，微調 θz'],
+      ['④ 確認全部通道', '逐一檢查耦合功率'],
     ];
     const steps = h('div', { class: 'fa-steps' }, STEPS.map(([b, s]) => h('div', null, h('b', null, b), h('span', null, s))));
     const D0 = { dx: 3.2, dy: 2.0 }, TH0 = 0.16 * DEG;            // 起始：第 1 通道偏 (3.2, 2.0) µm、θz 差 0.16°（同方向，外側通道最差）
     const st = { a: 0, cmd: 0 };                                 // a：第 1 通道對位進度 0→1；cmd：拉桿轉的角度
     const cv = h('canvas', { style: { width: '100%', height: '100%', display: 'block' } }), G = fitCanvas(cv, () => draw());
     const sT = slider({ label: '旋轉角度（以第 1 通道為圓心）', min: -0.3, max: 0.3, step: 0.001, value: 0, unit: '°', digits: 3, onInput: (v) => { st.cmd = v * DEG; draw(); } });
-    const kp = h('div', { class: 'fa-k' }), status = h('div', { class: 'fa-txt' });
+    const kp = h('div', { class: 'fa-k' }), status = h('div', { class: 'fa-txt strategy-status' });
     let raf = 0;
     const tween = (to) => { cancelAnimationFrame(raf); const a0 = st.a, t0 = performance.now(); const f = (now) => { const u = Math.min(1, (now - t0) / 1200); st.a = a0 + (to - a0) * u * u * (3 - 2 * u); draw(); if (u < 1) raf = requestAnimationFrame(f); }; raf = requestAnimationFrame(f); };
     const bAlign = h('button', { class: 'btn', type: 'button', onclick: () => tween(1) }, '✔ 完成第 1 通道對位');
@@ -405,6 +412,7 @@ function mountViews(sec, ctx) {
       const o = { dx: D0.dx * (1 - st.a), dy: D0.dy * (1 - st.a), thz: TH0 + st.cmd }, C = chans(o), pN = dB(C[S.N - 1].e), p1 = dB(C[0].e);
       const ok1 = st.a > 0.999, okN = ok1 && pN >= dB(PEAK) - 1;
       const step = !ok1 ? 0 : okN ? 3 : Math.abs(st.cmd) < 1e-9 ? 1 : 2;
+      status.classList.toggle('is-aligned', okN);
       [...steps.children].forEach((e, i) => e.classList.toggle('on', i === step));
       sT.el.style.opacity = ok1 ? 1 : 0.4; sT.el.querySelector('input').disabled = !ok1;
       bAlign.disabled = ok1;
@@ -413,9 +421,9 @@ function mountViews(sec, ctx) {
         h('div', null, h('b', null, pN < -30 ? '沒有光' : `${pN.toFixed(2)} dB`), h('span', null, `第 ${S.N} 通道功率`)),
         h('div', null, h('b', null, `${(o.thz / DEG).toFixed(3)}°`), h('span', null, 'θz 還差多少')),
         h('div', null, h('b', null, `${Math.hypot(C[S.N - 1].ox, C[S.N - 1].oy).toFixed(2)} µm`), h('span', null, `第 ${S.N} 通道總偏移（含 XY）`)));
-      status.replaceChildren(!ok1 ? '先按「完成第 1 通道對位」：把第 1 通道當單根光纖對好。'
-        : okN ? h('span', null, h('b', null, `✔ 第 ${S.N} 通道對準`), '：離峰值不到 1 dB。中間通道通常也跟著對好，最後再逐一確認。')
-          : `拖拉桿以第 1 通道為圓心轉 θz，看第 ${S.N} 通道的功率，找最亮的位置。`);
+      status.replaceChildren(!ok1 ? '先完成第 1 通道對位，再調整 θz。'
+        : okN ? h('span', null, h('b', null, `✔ 第 ${S.N} 通道距峰值 ≤ 1 dB`), '，接著確認全通道。')
+          : `調整 θz，尋找第 ${S.N} 通道的功率峰值。`);
       if (!G.w) return;
       const { ctx, w: W, h: H } = G; ctx.clearRect(0, 0, W, H); bgFill(ctx, W, H);
       drawFacetRow(ctx, { x: 10, y: 10, w: W - 20, h: H * 0.48 }, C, { hl: ok1 ? [0, S.N - 1] : [0], pivot: ok1 ? { x: 0, y: 0 } : null, mag: 10 });
@@ -425,7 +433,11 @@ function mountViews(sec, ctx) {
       h('div', { class: 'card dark', style: { padding: '8px' } }, cv),
       h('div', { class: 'card dark col', style: { gap: '12px' } },
         h('div', { class: 'row' }, bAlign, bReset), sT.el, status, kp)),
-      h('div', { class: 'src', style: { flex: 'none' } }, SRC.xu + '：先由第 1 通道進光，六軸最佳化最外側迴路（第 1、8 通道）的功率，位置固定後再量內側通道（該實驗兩端都裝了 3D 列印微透鏡）。' + SRC.model));
+      h('div', { class: 'src strategy-source' },
+        '微透鏡實驗：', h('a', { href: 'https://doi.org/10.37188/lam.2023.003', target: '_blank', rel: 'noopener noreferrer', style: { color: 'inherit' } }, 'Xu et al.（2023）'),
+        '先最佳化外側迴路，再確認內側；本頁 UHNA／SSC 示意參數分別參考 ',
+        h('a', { href: 'https://doi.org/10.1364/PRJ.7.000201', target: '_blank', rel: 'noopener noreferrer', style: { color: 'inherit' } }, 'Marchetti（2019）'), '、',
+        h('a', { href: 'https://doi.org/10.3390/app6120426', target: '_blank', rel: 'noopener noreferrer', style: { color: 'inherit' } }, 'Carroll（2016）'), '。'));
     return { show() { G.apply(); draw(); }, hide() { cancelAnimationFrame(raf); } };
   });
 
@@ -434,18 +446,16 @@ function mountViews(sec, ctx) {
     body.append(h('style', null, CSS));
     const st = { r: 444, th: 0.05 * DEG, comp: false };
     const cv = h('canvas', { style: { width: '100%', height: '100%', display: 'block' } }), G = fitCanvas(cv, () => draw());
-    const sR = slider({ label: '平台轉軸離第 1 通道（沿陣列方向）', min: 0, max: 3000, step: 10, value: st.r, unit: 'µm', digits: 0, onInput: (v) => { st.r = v; draw(); } });
+    const sR = slider({ label: '轉軸至第 1 通道距離 r', min: 0, max: 3000, step: 10, value: st.r, unit: 'µm', digits: 0, onInput: (v) => { st.r = v; draw(); } });
     const sT = slider({ label: '轉 θz', min: -0.15, max: 0.15, step: 0.001, value: 0.05, unit: '°', digits: 3, onInput: (v) => { st.th = v * DEG; draw(); } });
-    const segC = segmented([{ id: 'off', label: '直接轉' }, { id: 'on', label: '同時用 XY 補回（虛擬旋轉中心）' }], 'off', (id) => { st.comp = id === 'on'; draw(); });
+    const segC = segmented([{ id: 'off', label: '直接旋轉' }, { id: 'on', label: '旋轉＋XY 補償' }], 'off', (id) => { st.comp = id === 'on'; draw(); });
     const kp = h('div', { class: 'fa-k' });
     function draw() {
       const pv = { x: st.r, y: 0 }, raw = chan(0, { thz: st.th, pivot: pv });
       const o = { thz: st.th, pivot: pv, dx: st.comp ? -raw.ox : 0, dy: st.comp ? -raw.oy : 0 }, C = chans(o);
       kp.replaceChildren(
-        h('div', null, h('b', null, `${Math.hypot(raw.ox, raw.oy).toFixed(2)} µm`), h('span', null, '第 1 通道被帶走（≈ r·θz）')),
-        h('div', null, h('b', null, `${dB(C[0].e).toFixed(2)} dB`), h('span', null, st.comp ? '第 1 通道（補回後）' : '第 1 通道')),
-        h('div', null, h('b', null, st.comp ? `(${(-raw.ox).toFixed(2)}, ${(-raw.oy).toFixed(2)})` : '—'), h('span', null, 'XY 補償量（µm）')),
-        h('div', null, h('b', null, `${dB(C[S.N - 1].e).toFixed(2)} dB`), h('span', null, `第 ${S.N} 通道`)));
+        h('div', null, h('b', null, `${Math.hypot(C[0].ox, C[0].oy).toFixed(2)} µm`), h('span', null, '第 1 通道目前偏移')),
+        h('div', null, h('b', null, st.comp ? `(${(-raw.ox).toFixed(2)}, ${(-raw.oy).toFixed(2)})` : '—'), h('span', null, 'XY 補償量（µm）')));
       if (!G.w) return;
       const { ctx, w: W, h: H } = G; ctx.clearRect(0, 0, W, H); bgFill(ctx, W, H);
       drawFacetRow(ctx, { x: 10, y: 10, w: W - 20, h: H * 0.5 }, C, { hl: [0, S.N - 1], pivot: pv, mag: 14 });
@@ -454,11 +464,15 @@ function mountViews(sec, ctx) {
     body.append(h('div', { class: 'grid grow', style: { gridTemplateColumns: '1fr 440px' } },
       h('div', { class: 'card dark', style: { padding: '8px' } }, cv),
       h('div', { class: 'card dark col', style: { gap: '10px' } },
-        tex('\\Delta_1=\\left(R(\\theta_z)-I\\right)(\\mathbf{p}_1-\\mathbf{c})\\approx r\\,\\theta_z', 'sm'),
-        h('div', { class: 'fa-txt' }, '平台 θz 軸的中心 c 通常不在第 1 通道上。離第 1 通道 r，轉 θz 時第 1 通道就被帶走約 r·θz，剛對好的第 1 通道又跑掉。'),
+        h('h3', null, '轉軸偏離，首通道就會移動'),
+        tex('|\\Delta_1|\\approx r\\,|\\theta_z|', 'sm'),
+        h('div', { class: 'fa-txt' }, '距離 r 越大，同樣轉角造成的偏移越大。'),
         sR.el, sT.el, segC.el, kp,
-        h('div', { class: 'fa-txt', style: { marginTop: 'auto' } }, h('b', null, '兩種解法：'), '機構上把轉軸對在第 1 通道；或轉的同時用 XY 把 Δ₁ 補回來（虛擬旋轉中心）。這跟角度軸的旋轉中心要重合在光纖端面是同一件事。'))),
-      h('div', { class: 'src', style: { flex: 'none' } }, 'Δ₁ 為剛體旋轉的幾何關係。' + SRC.xu + '：以六軸平台對光纖陣列做主動對位。' + SRC.pi));
+        h('div', { class: 'fa-txt strategy-takeaway', style: { marginTop: 'auto' } }, h('b', null, '補償原則'), h('div', null, '轉軸對準第 1 通道，或用 XY 反向補回偏移。')))),
+      h('div', { class: 'src strategy-source' },
+        '剛體旋轉（小角度用 rad）；六軸對位：',
+        h('a', { href: 'https://doi.org/10.37188/lam.2023.003', target: '_blank', rel: 'noopener noreferrer', style: { color: 'inherit' } }, 'Xu et al.（2023）'),
+        '；虛擬旋轉中心：', h('span', { title: 'Fiber array alignment, photonic device assembly, with new tools' }, 'S. Jordan，PI 技術文章（非期刊）。')));
     return { show() { G.apply(); draw(); } };
   });
 
@@ -475,11 +489,15 @@ function mountViews(sec, ctx) {
     const holder = h('div', { class: 'c3d', style: { height: '100%' } }), cap = h('div', { class: 'xy-cap' });
     const steps = h('div', { class: 'xy-steps' }, ['① 平台轉 θz', '② XY 台移回', '結果：繞第 1 通道轉'].map((s) => h('div', null, s)));
     let v3 = null;
-    const sR = slider({ label: '平台轉軸離第 1 通道', min: 100, max: 3000, step: 10, value: st.r, unit: 'µm', digits: 0, onInput: (v) => { st.r = v; st.t = 0; st.reset = true; } });
-    const sT = slider({ label: '要轉的 θz', min: 0.01, max: 0.1, step: 0.001, value: 0.05, unit: '°', digits: 3, onInput: (v) => { st.th = v * DEG; st.t = 0; st.reset = true; } });
-    const bPlay = h('button', { class: 'btn', type: 'button', onclick: () => { st.playing = !st.playing; bPlay.textContent = st.playing ? '⏸ 暫停' : '▶ 播放'; } }, '⏸ 暫停');
+    const sR = slider({ label: '平台轉軸離第 1 通道', min: 100, max: 3000, step: 10, value: st.r, unit: 'µm', digits: 0, onInput: (v) => { st.r = v; st.t = 0; st.reset = true; v3?.requestRender(); } });
+    const sT = slider({ label: '要轉的 θz', min: 0.01, max: 0.1, step: 0.001, value: 0.05, unit: '°', digits: 3, onInput: (v) => { st.th = v * DEG; st.t = 0; st.reset = true; v3?.requestRender(); } });
+    const bPlay = h('button', { class: 'btn', type: 'button', onclick: () => { st.playing = !st.playing; st.last = performance.now(); bPlay.textContent = st.playing ? '⏸ 暫停' : '▶ 播放'; v3?.requestRender(); } }, '⏸ 暫停');
     const bView = h('button', { class: 'btn ghost', type: 'button', onclick: () => v3 && v3.resetView() }, '視角重置');
     const kp = h('div', { class: 'fa-k' });
+    const capTitle = h('span', { class: 'n' }), capDetail = h('small'), offsetValue = h('b'), moveValue = h('b');
+    cap.append(capTitle, capDetail);
+    kp.append(h('div', null, offsetValue, h('span', null, '第 1 通道偏移（真實）')), h('div', null, moveValue, h('span', null, 'XY 台移回（nm）')));
+    const text = (el, value) => { if (el.textContent !== value) el.textContent = value; };
     const ease = (u) => (u <= 0 ? 0 : u >= 1 ? 1 : u * u * (3 - 2 * u));
     function refresh() {
       const t = st.t, a = ease((t - T.a) / (T.b - T.a)), f = ease((t - T.c) / (T.d - T.c)), th = st.th * a;
@@ -487,64 +505,35 @@ function mountViews(sec, ctx) {
       const raw = chan(0, { thz: th, pivot: { x: st.r, y: 0 } }), ox = raw.ox * (1 - f), oy = raw.oy * (1 - f), off = Math.hypot(ox, oy);
       [...steps.children].forEach((e, i) => e.classList.toggle('on', i === phase));
       const CAP = [
-        ['準備：第 1 通道已經對準藍圈', `平台的 θz 轉軸（✕）不在第 1 通道上，離它 ${st.r} µm`],
-        ['① 平台繞自己的轉軸轉 θz', '第 1 通道沿著以轉軸為圓心的圓弧（虛線）跑掉了'],
-        ['② 同時讓 XY 台往反方向移', '把第 1 通道推回藍圈；轉軸也跟著 XY 台一起移動'],
-        ['結果：等於繞第 1 通道轉', '第 1 通道留在原地，只有其他通道在轉——第 1 通道成了「虛擬旋轉中心」'],
+        ['準備：第 1 通道已對準', `轉軸距離 ${st.r} µm`],
+        ['① 旋轉 θz', '第 1 通道沿虛線圓弧偏移'],
+        ['② XY 反向補回', '將第 1 通道移回藍圈'],
+        ['結果：繞第 1 通道旋轉', '首通道固定，其餘通道轉動'],
       ][phase + 1];
-      cap.replaceChildren(h('span', { class: 'n' }, CAP[0]), h('small', null, CAP[1]));
-      kp.replaceChildren(
-        h('div', null, h('b', { style: { color: off < 0.01 ? '#69db7c' : '#ff8a70' } }, `${Math.round(off * 1000)} nm`), h('span', null, '第 1 通道偏移（真實）')),
-        h('div', null, h('b', null, `${(th / DEG).toFixed(3)}°`), h('span', null, '已轉的 θz')),
-        h('div', null, h('b', null, `(${Math.round(-raw.ox * f * 1000) + 0}, ${Math.round(-raw.oy * f * 1000) + 0})`), h('span', null, 'XY 台移回（nm）')),
-        h('div', null, h('b', null, `${(Math.hypot(raw.ox, raw.oy) * 1000).toFixed(0)} nm`), h('span', null, '≈ r·θz（要補回的量）')));
+      text(capTitle, CAP[0]); text(capDetail, CAP[1]);
+      text(offsetValue, `${Math.round(off * 1000)} nm`); offsetValue.style.color = off < 0.01 ? '#69db7c' : '#ff8a70';
+      text(moveValue, `(${Math.round(-raw.ox * f * 1000) + 0}, ${Math.round(-raw.oy * f * 1000) + 0})`);
       v3 && v3.update({ N: S.N, P: S.P, r: st.r, thd: th * M, f, arrow: phase === 1, resetTrail: st.reset || t < T.a }); st.reset = false;
     }
-    const frame = (now) => { const dt = Math.min(0.05, (now - st.last) / 1000 || 0); st.last = now; if (st.playing) { st.t += dt; if (st.t > T.end) { st.t = 0; st.reset = true; } } refresh(); };
+    const frame = (now) => { const dt = Math.min(0.05, (now - st.last) / 1000 || 0); st.last = now; if (st.playing) { st.t += dt; if (st.t > T.end) { st.t = 0; st.reset = true; } } refresh(); return st.playing; };
     body.append(h('div', { class: 'grid grow', style: { gridTemplateColumns: '1fr 380px' } },
       h('div', { class: 'card dark', style: { padding: '6px', position: 'relative' } }, holder, cap,
         h('div', { class: 'small', style: { position: 'absolute', left: '16px', bottom: '12px', color: '#93a6c6' } }, `角度放大 ${M} 倍顯示（位移也一起放大）；拖曳可旋轉視角`)),
       h('div', { class: 'card dark col', style: { gap: '10px' } },
         steps, kp,
-        tex('(\\Delta x,\\Delta y)=-\\left(R(\\theta_z)-I\\right)(\\mathbf{p}_1-\\mathbf{c})', 'sm'),
-        h('div', { class: 'fa-txt' }, '旋轉台裝在 XY 台上。轉的同時讓 XY 台移回 (Δx, Δy)，兩個動作合起來就等於繞第 1 通道轉。'),
+        tex('\\Delta\\mathbf{p}_{XY}=-\\Delta_1', 'sm'),
+        h('div', { class: 'fa-txt' }, 'XY 抵消旋轉偏移，形成虛擬旋轉中心。'),
         h('div', { class: 'row' }, bPlay, bView), sR.el, sT.el)),
-      h('div', { class: 'src', style: { flex: 'none' } }, '補回量為剛體旋轉的幾何關係。' + SRC.pi + '　' + SRC.xu + '：以六軸平台對光纖陣列做主動對位。'));
+      h('div', { class: 'src strategy-source' },
+        '補償量依剛體旋轉計算；六軸對位：',
+        h('a', { href: 'https://doi.org/10.37188/lam.2023.003', target: '_blank', rel: 'noopener noreferrer', style: { color: 'inherit' } }, 'Xu et al.（2023）'),
+        '；虛擬旋轉中心：', h('span', { title: 'Fiber array alignment, photonic device assembly, with new tools' }, 'S. Jordan，PI 技術文章（非期刊）。')));
     return {
       show() { if (!v3) v3 = new XYComp3D(holder); st.t = 0; st.reset = true; st.last = performance.now(); refresh(); v3.start(frame); },
       hide() { v3 && v3.stop(); },
     };
   });
 
-  // ============ 6. 怎麼定義光耦合成功：只量最遠的通道 ============
-  sec.slide({ title: '怎麼定義光耦合成功', sub: '' }, (body) => {
-    body.append(h('style', null, CSS));
-    const st = { th: 0.03 * DEG };
-    const cv = h('canvas', { style: { width: '100%', height: '100%', display: 'block' } }), G = fitCanvas(cv, () => draw());
-    const [sN, sP] = segNP(() => draw());
-    const sT = slider({ label: 'θz（繞第 1 通道）', min: -0.15, max: 0.15, step: 0.001, value: 0.03, unit: '°', digits: 3, onInput: (v) => { st.th = v * DEG; draw(); } });
-    const kp = h('div', { class: 'fa-k' });
-    function draw() {
-      const C = chans({ thz: st.th }), tl = tol1dB(), last = C[S.N - 1], ok = dB(C[0].e) >= dB(PEAK) - 1 && dB(last.e) >= dB(PEAK) - 1;
-      kp.replaceChildren(
-        h('div', null, h('b', null, `${Math.hypot(last.ox, last.oy).toFixed(2)} µm`), h('span', null, `第 ${S.N} 通道偏移`)),
-        h('div', null, h('b', null, `${dB(Math.min(...C.map((c) => c.e))).toFixed(2)} dB`), h('span', null, '最差通道')),
-        h('div', null, h('b', { style: { color: ok ? '#69db7c' : '#ff6b6b' } }, ok ? '✔ 成功' : '✖ 未成功'), h('span', null, `判定：第 1、第 ${S.N} 通道都離對準值 ≤ 1 dB`)),
-        h('div', null, h('b', null, `±${(tl.thz / DEG).toFixed(3)}°`), h('span', null, `第 ${S.N} 通道掉 1 dB 的 θz`)));
-      if (!G.w) return;
-      const { ctx, w: W, h: H } = G; ctx.clearRect(0, 0, W, H); bgFill(ctx, W, H);
-      drawFacetRow(ctx, { x: 10, y: 10, w: W - 20, h: H * 0.45 }, C, { hl: [0, S.N - 1], pivot: { x: 0, y: 0 }, mag: 14 });
-      drawBars(ctx, { x: 10, y: H * 0.45 + 22, w: W - 20, h: H * 0.55 - 32 }, C, { lo: -6 });
-    }
-    body.append(h('div', { class: 'grid grow', style: { gridTemplateColumns: '1fr 420px' } },
-      h('div', { class: 'card dark', style: { padding: '8px' } }, cv),
-      h('div', { class: 'card dark col', style: { gap: '10px' } },
-        tex('\\Delta y_N=(N-1)\\,P\\,\\sin\\theta_z=L\\sin\\theta_z', 'sm'),
-        tex('\\mathrm{IL}_1,\\ \\mathrm{IL}_N\\le\\mathrm{IL}_{0}+1\\,\\mathrm{dB}\\;\\Rightarrow\\;\\text{成功}', 'sm'),
-        h('div', { class: 'fa-txt' }, '以第 1 通道為圓心轉 θz，第 i 通道偏 (i−1)·P·sinθz：離第 1 通道越遠，偏差越大。第 1 通道在步驟 ① 已對好並持續監看，所以只要再量最遠的第 N 通道：兩端都離對準值（IL₀）不到 1 dB，中間通道的偏差介於兩端之間，在理想陣列中也會在 1 dB 內。實際陣列的纖芯位置有誤差（文獻值：纖芯偏 1.4 µm 時，UHNA〔MFD 3.5 µm〕多損約 2.1 dB，Marchetti 2019 Fig. 56b），所以最後仍要逐一確認中間通道。1 dB 為本報告自訂的判定門檻。'),
-        sN.el, sP.el, sT.el, kp)),
-      h('div', { class: 'src', style: { flex: 'none' } }, SRC.mar + '：陣列滾轉位移 d = (N−1)·P·tanθ（Eq. 24，p. 230），纖芯位置偏差造成的損耗（p. 230）。' + SRC.xu + '：最外側迴路對好後，再量內側通道確認。' + SRC.model));
-    return { show() { G.apply(); draw(); } };
-  });
-
+  // 6. 多通道驗證：沿用同一個 UHNA 模型，精簡呈現兩端判定與逐通道確認。
+  sec.slide({ title: '怎麼定義光耦合成功', sub: '' }, body => buildValidation(body, { S, chans, PEAK, tol1dB }));
 }

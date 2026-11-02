@@ -1,0 +1,96 @@
+/* 2-4: one visual story per page, with the simulation and evidence kept legible. */
+.slide.report-ui[data-report-chapter=md] .stitle { min-height:58px; margin-bottom:12px; }
+.slide.report-ui[data-report-chapter=md] .stitle h1 { font-size:31px; letter-spacing:.6px; }
+.slide.report-ui[data-report-chapter=md] .sbody { gap:14px; }
+.slide.report-ui[data-report-chapter=md] .card.dark { border:1px solid #344d62; border-radius:14px; padding:16px; background:linear-gradient(145deg,#152b3e,#101f30); box-shadow:inset 0 1px #ffffff05; }
+.slide.report-ui[data-report-chapter=md] :is(.aesc-layout,.noise-layout,.reflection-layout) { gap:16px; }
+.slide.report-ui[data-report-chapter=md] :is(.aesc-results,.noise-demo,.noise-evidence) { gap:14px; }
+.slide.report-ui[data-report-chapter=md] .measure-toolbar { flex:none; gap:10px; align-items:center; }
+.slide.report-ui[data-report-chapter=md] .aesc-demo .measure-toolbar > .seg:last-child { margin-left:auto; }
+.slide.report-ui[data-report-chapter=md] .card .seg button.on { color:#e1f2f2; background:linear-gradient(145deg,#315666,#254253); box-shadow:inset 0 0 0 1px #7198a5; }
+.slide.report-ui[data-report-chapter=md] .measure-toolbar > .btn:not(.ghost) { border-color:#7198a5; background:linear-gradient(145deg,#305464,#1b3b4c); color:#e2f1f2; min-width:82px; }
+.slide.report-ui[data-report-chapter=md] .btn { min-height:36px; }
+.slide.report-ui[data-report-chapter=md] .measure-chart-head { display:flex; align-items:center; justify-content:space-between; flex:none; gap:12px; }
+.slide.report-ui[data-report-chapter=md] .measure-chart-head b { font-size:17px; color:#e6eef4; }
+.slide.report-ui[data-report-chapter=md] .measure-chart-head > span { font-size:13px; color:#a8bfd0; }
+.slide.report-ui[data-report-chapter=md] .measure-principle { flex:none; }
+.slide.report-ui[data-report-chapter=md] .measure-principle p { margin:10px 0 0; font-size:17px; line-height:1.5; color:#bdcfdd; }
+.slide.report-ui[data-report-chapter=md] .measure-takeaway { flex:none; margin-top:14px; padding:11px 14px; border-left:2px solid #d3b487; border-radius:0 8px 8px 0; background:#d3b4870a; font-size:16px; line-height:1.5; color:#d2dfeb; }
+.slide.report-ui[data-report-chapter=md] .measure-takeaway > b { display:block; color:#edcda3; font-size:17px; }
+.slide.report-ui[data-report-chapter=md] .measure-takeaway p { margin:5px 0 0; }
+.slide.report-ui[data-report-chapter=md] .measure-source { flex:none; border-top:1px solid #30475b; padding-top:8px; font-size:13px; line-height:1.45; color:#a8bfd0; }
+.slide.report-ui[data-report-chapter=md] .measure-source a { color:#bcd5e3; text-decoration-color:#6a879b; text-underline-offset:3px; }
+.slide.report-ui[data-report-chapter=md] .measure-source a:hover { color:#f1cea2; }
+.slide.report-ui[data-report-chapter=md] :is(button,a,img[role=button]):focus-visible { outline:2px solid #9ed2d5; outline-offset:3px; }
+
+/* AESC: the experiment occupies the left; principle, trend and result on the right. */
+.slide.report-ui[data-report-chapter=md] .aesc-layout { grid-template-columns:minmax(0,1.05fr) minmax(0,1fr); }
+.slide.report-ui[data-report-chapter=md] .aesc-demo { gap:12px; }
+.slide.report-ui[data-report-chapter=md] .aesc-demo .rd2 { font-size:14px; padding:10px 12px; }
+.slide.report-ui[data-report-chapter=md] .measure-legend { display:flex; justify-content:space-between; gap:10px; flex:none; color:#bdcfdd; font-size:13px; padding:3px 2px 0; }
+.slide.report-ui[data-report-chapter=md] .legend-path { color:#ffba86; }
+.slide.report-ui[data-report-chapter=md] .legend-dither { color:#e9d78c; }
+.slide.report-ui[data-report-chapter=md] .measure-flow { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:10px; }
+.slide.report-ui[data-report-chapter=md] .measure-flow span { padding:10px 8px; text-align:center; border:1px solid #3c5e73; border-radius:8px; background:#102333; color:#c9e5e8; font-size:18px; font-weight:600; }
+.slide.report-ui[data-report-chapter=md] .measure-flow span + span { position:relative; }
+.slide.report-ui[data-report-chapter=md] .measure-flow span + span::before { content:'›'; position:absolute; left:-9px; top:50%; transform:translateY(-50%); color:#a0bbc9; background:#152a3c; font-size:18px; line-height:1; }
+.slide.report-ui[data-report-chapter=md] .aesc-convergence { gap:8px; }
+.slide.report-ui[data-report-chapter=md] .measure-results { flex:none; }
+.slide.report-ui[data-report-chapter=md] .measure-results .k-h { margin-bottom:12px; }
+.slide.report-ui[data-report-chapter=md] .kpis > div { min-height:84px; display:flex; flex-direction:column; justify-content:center; gap:8px; background:linear-gradient(160deg,#d6b5800b,#102235); }
+.slide.report-ui[data-report-chapter=md] .kpis b { font-size:27px; }
+
+/* Limits: adjustable signal, SNR and drift are grouped separately from comparison evidence. */
+.slide.report-ui[data-report-chapter=md] .noise-layout { grid-template-columns:minmax(0,1.15fr) minmax(0,1fr); }
+.slide.report-ui[data-report-chapter=md] .noise-controls { flex:none; gap:12px; padding:14px 16px; }
+.slide.report-ui[data-report-chapter=md] .noise-controls .measure-toolbar > button { margin-left:auto; }
+.slide.report-ui[data-report-chapter=md] .noise-controls .slider { margin:0; }
+.slide.report-ui[data-report-chapter=md] .noise-metrics { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); padding:9px 10px; gap:10px; font-family:inherit; }
+.slide.report-ui[data-report-chapter=md] .noise-metrics > div { display:flex; flex-direction:column; align-items:center; gap:5px; }
+.slide.report-ui[data-report-chapter=md] .noise-metrics > div + div { border-left:1px solid #314b60; }
+.slide.report-ui[data-report-chapter=md] .noise-metrics span { font-size:13px; color:#a9c2d5; }
+.slide.report-ui[data-report-chapter=md] .noise-metrics b { font:600 25px var(--mono); }
+.slide.report-ui[data-report-chapter=md] :is(.rd2 b,table.cmp td).ok { color:#a6dfc1; }
+.slide.report-ui[data-report-chapter=md] :is(.rd2 b,table.cmp td).bad { color:#efaaa8; }
+.slide.report-ui[data-report-chapter=md] .noise-wave { gap:10px; }
+.slide.report-ui[data-report-chapter=md] .noise-lower { grid-template-columns:minmax(0,1.15fr) minmax(0,1fr); gap:14px; flex:1.05; }
+.slide.report-ui[data-report-chapter=md] .noise-lower .card { padding:12px; }
+.slide.report-ui[data-report-chapter=md] .noise-walk { gap:6px; }
+.slide.report-ui[data-report-chapter=md] .noise-walk .btn { padding:5px 10px; font-size:13px; min-height:30px; }
+.slide.report-ui[data-report-chapter=md] .noise-walk .measure-chart-head b { font-size:15px; }
+.slide.report-ui[data-report-chapter=md] .noise-evidence .k-h { font-size:20px; margin-bottom:10px; color:#d4e8ef; }
+.slide.report-ui[data-report-chapter=md] .noise-evidence .k-ul { font-size:16px; line-height:1.7; }
+.slide.report-ui[data-report-chapter=md] .noise-comparison { gap:12px; }
+.slide.report-ui[data-report-chapter=md] .figs { gap:10px; }
+.slide.report-ui[data-report-chapter=md] .figs figure { display:flex; flex-direction:column; background:#f0f3f7; border:1px solid #415c70; }
+.slide.report-ui[data-report-chapter=md] .figs figure:has(img:hover),.slide.report-ui[data-report-chapter=md] .figs figure:focus-within { border-color:#a4ced4; box-shadow:0 0 0 2px #a4ced420; }
+.slide.report-ui[data-report-chapter=md] .figs img:focus-visible { outline-offset:-4px; }
+.slide.report-ui[data-report-chapter=md] .figs img { height:0; min-height:0; flex:1; width:100%; object-fit:contain; border:0; border-radius:0; cursor:zoom-in; }
+.slide.report-ui[data-report-chapter=md] .figs figcaption { position:static; flex:none; padding:7px 8px; border-radius:0; font-size:13px; text-align:center; color:#d8e8f1; background:#1b3549; }
+.slide.report-ui[data-report-chapter=md] table.cmp { font-size:15px; }
+.slide.report-ui[data-report-chapter=md] table.cmp :is(th,td) { padding:8px; }
+.slide.report-ui[data-report-chapter=md] table.cmp th { font-size:13px; }
+.slide.report-ui[data-report-chapter=md] table.cmp :is(th,td):first-child { text-align:left; padding-left:12px; }
+.slide.report-ui[data-report-chapter=md] table.cmp td { font-variant-numeric:tabular-nums; }
+.slide.report-ui[data-report-chapter=md] .noise-comparison .measure-takeaway { margin:0; font-size:15px; }
+.slide.report-ui[data-report-chapter=md] .measure-figure-dialog { margin:auto; padding:18px; width:min(1000px,88vw); max-height:86vh; color:#e4eef6; background:#122436; border:1px solid #6c879b; border-radius:14px; box-shadow:0 24px 90px #0009; }
+.slide.report-ui[data-report-chapter=md] .measure-figure-dialog::backdrop { background:#030a15d9; }
+.slide.report-ui[data-report-chapter=md] .measure-dialog-head { display:flex; justify-content:space-between; align-items:center; gap:20px; margin-bottom:14px; }
+.slide.report-ui[data-report-chapter=md] .measure-figure-dialog > img { display:block; max-width:100%; max-height:calc(80vh - 70px); margin:auto; object-fit:contain; border-radius:7px; }
+
+/* Reflection: a large shared diagram and curve, with a concise control column. */
+.slide.report-ui[data-report-chapter=md] .reflection-layout { grid-template-columns:minmax(0,1.75fr) minmax(0,1fr); }
+.slide.report-ui[data-report-chapter=md] .reflection-controls { padding:22px; gap:18px!important; }
+.slide.report-ui[data-report-chapter=md] .reflection-controls h3 { margin:0 0 10px; font-size:18px; }
+.slide.report-ui[data-report-chapter=md] .reflection-controls .seg { display:flex; flex-direction:column; gap:6px; }
+.slide.report-ui[data-report-chapter=md] .reflection-controls .seg button { width:100%; min-height:43px; text-align:left; font-size:15px; padding:10px 12px; border-radius:7px; }
+.slide.report-ui[data-report-chapter=md] .reflection-controls .seg button.on { background:linear-gradient(90deg,#37617380,#203b4d); color:#e3f2f2; box-shadow:inset 3px 0 #9acbd0; }
+.slide.report-ui[data-report-chapter=md] .reflection-controls .kpis { gap:12px; }
+.slide.report-ui[data-report-chapter=md] .reflection-controls .kpi { padding:13px 8px; min-height:90px; border:1px solid #3b5369; border-top:2px solid #88b8c2; border-radius:11px; background:linear-gradient(160deg,#24445880,#102235); }
+.slide.report-ui[data-report-chapter=md] .reflection-controls .kpi:last-child { border-top-color:#cbaa7f; }
+.slide.report-ui[data-report-chapter=md] .reflection-controls .kpi .big { font-size:30px; }
+.slide.report-ui[data-report-chapter=md] .reflection-notes { display:flex; flex-direction:column; gap:16px; }
+.slide.report-ui[data-report-chapter=md] .reflection-notes b { font-size:17px; color:#cde3ed; }
+.slide.report-ui[data-report-chapter=md] .reflection-notes p { margin:5px 0 0; font-size:16px; line-height:1.6; color:#bcd0df; }
+.slide.report-ui[data-report-chapter=md] .reflection-controls .measure-takeaway { margin-top:auto; }
+.slide.report-ui[data-report-chapter=md] .slider .sl-val { min-width:76px; text-align:right; }

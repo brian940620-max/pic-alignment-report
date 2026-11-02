@@ -3,6 +3,7 @@
 import { eta, beamAt, PRESETS } from './physics.js';
 import { planAlignment } from './align.js';
 import { h, segmented, loop, ease, clamp, lerp, DEG } from './ui.js';
+import { demandLoop } from './demand-loop.js';
 
 export const STAGES = [
   { id: 1, name: '階段 1：粗動，把光纖送進相機視野', short: '粗動', color: '#3b6ea8',
@@ -105,30 +106,41 @@ let _def=null;
 export function defaultScenario() { if (!_def) _def = buildScenario({ ...PRESETS.lensedSSC.p }); return _def; }
 
 // 播放控制列（兩個頁面共用）。onTime(t) 每幀呼叫；回傳 {el, get t, set(t), loop}
-// opts.idle：暫停時不必每幀重畫（機台頁）。只在時間有走、拖時間軸、換尺寸或 redraw() 時畫，另外每 0.5 s 補一次
+// opts.idle: paused machine views sleep until input/resize/redraw. animateIdle
+// allows a camera to finish damping and restore settled quality before sleeping.
 export function createTransport(sc, onTime, opts = {}) {
-  let t = 0, playing = false, speed = 1, dirty = true, lastRun = 0;
-  const lp = loop((dt, now) => {
+  let t = 0, playing = false, speed = 1, dirty = true, enabled = false;
+  const tick = (dt) => {
     if (playing) { t += dt * speed; if (t >= sc.total) { t = sc.total; playing = false; btn.textContent = '↻ 重播'; } slider.value = t * 100; label(); dirty = true; }
-    if (!opts.idle || dirty || now - lastRun > 0.5) { dirty = false; lastRun = now; onTime(t); }
-  });
-  if (opts.idle) for (const ev of ['resize', 'deckscale']) window.addEventListener(ev, () => { dirty = true; });
-  const btn = h('button', { class: 'btn', type: 'button', onclick: () => { if (t >= sc.total - 0.01) t = 0; playing = !playing; btn.textContent = playing ? '⏸ 暫停' : '▶ 播放'; } }, '▶ 播放');
+    let settling = false;
+    if (!opts.idle || dirty || opts.animateIdle) { dirty = false; settling = !!onTime(t); }
+    return playing || (opts.animateIdle && settling);
+  };
+  const demand = opts.idle ? demandLoop(tick) : null;
+  demand?.setActive(false);
+  const lp = demand ? {
+    start() { enabled = true; dirty = true; demand.setActive(true); },
+    stop() { enabled = false; demand.setActive(false); },
+    get running() { return enabled; },
+  } : loop(tick);
+  const invalidate = () => { dirty = true; demand?.wake(); };
+  if (opts.idle) for (const ev of ['resize', 'deckscale']) window.addEventListener(ev, invalidate);
+  const btn = h('button', { class: 'btn', type: 'button', onclick: () => { if (t >= sc.total - 0.01) t = 0; playing = !playing; btn.textContent = playing ? '⏸ 暫停' : '▶ 播放'; invalidate(); } }, '▶ 播放');
   const slider = h('input', { type: 'range', min: 0, max: Math.round(sc.total * 100), value: 0, style: { width: '100%' } });
-  slider.addEventListener('input', () => { t = +slider.value / 100; playing = false; btn.textContent = '▶ 播放'; label(); onTime(t); });
+  slider.addEventListener('input', () => { t = +slider.value / 100; playing = false; btn.textContent = '▶ 播放'; label(); onTime(t); invalidate(); });
   const time = h('span', { class: 'mono small' });
-  const label = () => { time.textContent = `${t.toFixed(1)} / ${sc.total.toFixed(0)} s（示意時間軸）`; };
+  const label = () => { time.textContent = `${t.toFixed(1)} / ${sc.total.toFixed(Number.isInteger(sc.total) ? 0 : 1)} s（示意時間軸）`; };
   const speedSeg = segmented([{ id: '0.5', label: '0.5×' }, { id: '1', label: '1×' }, { id: '2', label: '2×' }], '1', (id) => { speed = +id; });
   const marks = h('div', { style: { display: 'flex', height: '8px', borderRadius: '4px', overflow: 'hidden', margin: '2px 0 6px' } },
     sc.stages.map((s) => h('div', { style: { flex: `${s.t1 - s.t0}`, background: s.color, opacity: 0.8 } })));
-  const jump = h('div', { class: 'row' }, sc.stages.map((s) => h('button', { class: 'btn ghost', type: 'button', onclick: () => { t = s.t0 + 0.01; slider.value = t * 100; label(); onTime(t); } }, `跳到 ${s.short}`)));
+  const jump = h('div', { class: 'row' }, sc.stages.map((s) => h('button', { class: 'btn ghost', type: 'button', onclick: () => { t = s.t0 + 0.01; slider.value = t * 100; label(); onTime(t); invalidate(); } }, `跳到 ${s.short}`)));
   label();
   const el = h('div', { class: 'card' }, h('div', { class: 'row', style: { justifyContent: 'space-between' } }, h('div', { class: 'row' }, btn, speedSeg.el, time), jump), marks, slider);
   return {
     el, loop: lp, get t() { return t; },
-    set(v) { t = clamp(v, 0, sc.total); slider.value = t * 100; label(); onTime(t); },
+    set(v) { t = clamp(v, 0, sc.total); slider.value = t * 100; label(); onTime(t); invalidate(); },
     pause() { playing = false; btn.textContent = '▶ 播放'; },
-    redraw() { dirty = true; },
+    redraw: invalidate,
   };
 }
 export { beamAt };

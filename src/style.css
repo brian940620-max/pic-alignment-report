@@ -64,8 +64,13 @@ button { font-family: inherit; }
 #bar .disc { font-size: 12px; }
 #bar .dots { display: flex; gap: 14px; align-items: center; }
 #bar .dg { display: flex; gap: 5px; }
-#bar .dg i { width: 9px; height: 9px; border-radius: 50%; background: #34425e; cursor: pointer; display: block; transition: .2s; }
-#bar .dg i.on { background: #ffb86b; transform: scale(1.4); box-shadow: 0 0 8px #ff8a3d; }
+#bar .dg .dot { position:relative; width:18px; height:26px; padding:0; border:0; background:transparent; cursor:pointer; display:block; }
+#bar .dg .dot::before { content:''; position:absolute; width:7px; height:7px; left:50%; top:50%; transform:translate(-50%,-50%); border-radius:8px; background:#34425e; transition:width .18s,background .18s; }
+#bar .dg .dot.on::before { width:15px; background:#ffb86b; box-shadow:0 0 8px #ff8a3d40; }
+#bar .dg .dot:hover::before { background:#bfd8e8; }
+#bar .dg { gap:0; }
+#bar button:focus-visible,#nav button:focus-visible { outline:2px solid #b0e2e2; outline-offset:1px; border-radius:5px; }
+@media(prefers-reduced-motion:reduce) { #bar .dg .dot::before { transition:none; } }
 #bar .nb { background: rgba(255,255,255,.06); border: 1px solid rgba(140,170,230,.3); border-radius: 6px; width: 34px; height: 24px; font-size: 18px; line-height: 1; cursor: pointer; color: #dfe8fa; margin-left: 6px; }
 #bar .nb:disabled { opacity: .3; cursor: default; }
 h1.pt { font-size: 26px; margin: 4px 0 2px; color: var(--accent); }
