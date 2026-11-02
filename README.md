@@ -6,6 +6,8 @@
 
 這是網站的完整獨立開發專案。圖片、硬體模型基底、動畫軌跡與 FA8 驗證資料均已收齊；不需要原 Windows 電腦、MATLAB、Python 或整個私人研究專案。
 
+Windows、macOS、Linux 的 Node 22 建置與數值檢查已通過，正式網址的 27 頁與 3D 嵌入頁已檢視。[完整驗證紀錄與限制](docs/VERIFIED.md)。
+
 ## 在其他電腦開始
 
 先安裝 Git 與 **Node.js 22 LTS（含 npm）**，用自己的 GitHub 帳號登入 GitHub Desktop 或 `gh auth login`。讀取公開 repo 不需登入；推送需要此 repo 的寫入權限。
