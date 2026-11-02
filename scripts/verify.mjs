@@ -6,6 +6,7 @@ import { join } from 'node:path';
 process.chdir(fileURLToPath(new URL('../', import.meta.url)));
 const files = (dir) => readdirSync(dir).flatMap(n => statSync(join(dir, n)).isDirectory() ? files(join(dir, n)) : [join(dir, n)]);
 const html = readFileSync('dist/index.html', 'utf8');
+assert(!html.includes('\r'), 'Output must use LF on every OS');
 assert.match(html, /PIC 邊緣耦合/);
 assert(!html.includes('/*CSS*/') && !html.includes('/*JS*/'), 'Build placeholders remain');
 assert(existsSync('dist/platform_embed.html'), '3D platform missing');

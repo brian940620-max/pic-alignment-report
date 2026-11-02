@@ -122,7 +122,7 @@ async function buildPlatform() {
   html = html.replace(m[0], () => `<script>${js}</script>`);
   html = must(html, '<html lang="zh-Hant">', '<html lang="zh-Hant" data-theme="dark">');
   html = must(html, '</style>', EMBED_CSS + '</style>');
-  writeFileSync('dist/platform_embed.html', html);
+  writeFileSync('dist/platform_embed.html', html.replace(/\r\n?/g, '\n'));
   console.log(`platform embed  ${(html.length / 1024).toFixed(0)} KB（照片 ${nImg} 張拆到 platform_img/）`);
 }
 
@@ -135,7 +135,7 @@ const r = await build({
 const js = r.outputFiles[0].text.replace(/<\/script>/gi, '<\\/script>');
 const css = readFileSync('src/style.css', 'utf8') + '\n' + readFileSync('src/progress-ui.css', 'utf8') + '\n' + readFileSync('src/edge-ui.css', 'utf8') + '\n' + readFileSync('src/array-ui.css', 'utf8') + '\n' + readFileSync('src/machine-ui.css', 'utf8');
 const tpl = readFileSync('src/template.html', 'utf8');
-const html = tpl.replace('/*CSS*/', () => css).replace('/*JS*/', () => js);
+const html = tpl.replace('/*CSS*/', () => css).replace('/*JS*/', () => js).replace(/\r\n?/g, '\n');
 writeFileSync('dist/index.html', html);
 writeFileSync(`dist/${out}`, html);
 writeFileSync('dist/.nojekyll', '');

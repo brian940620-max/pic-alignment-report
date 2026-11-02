@@ -4,6 +4,8 @@
 
 功能版本：`7120ae4`。對應 [GitHub Actions 完整執行](https://github.com/brian940620-max/pic-alignment-report/actions/runs/41391669626)。
 
+跨平台檔案比對發現 CSS 的 Windows CRLF／Linux LF 差異；已在建置輸出統一 LF，並加入斷言與 `.gitattributes` 規則。兩種換行原本不影響畫面，但統一後可逐位元組比對發佈結果。
+
 | 項目 | 結果 |
 | --- | --- |
 | GitHub CI：Windows / macOS / Linux、Node 22 | 三組 npm ci + npm run check 全部成功 |
