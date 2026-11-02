@@ -1,0 +1,51 @@
+/* Machine presentation: restrained enclosure palette and readable controls. */
+.machine-ui .stitle { align-items:center; }
+.machine-ui .machine-focus-button { margin-left:auto; background:#213a50; color:#cfe2f2; border:1px solid #4c6b84; border-radius:7px; padding:7px 13px; font:600 14px var(--font); cursor:pointer; white-space:nowrap; }
+.machine-ui .machine-focus-button[aria-pressed=true] { color:#ffe1b5; border-color:#e8b57b; }
+.machine-ui .sbody > .grid { grid-template-rows:minmax(0,1fr); }
+.machine-ui .m3d { border-radius:12px; background:#17212b; }
+.machine-ui .pctl { padding:16px; gap:9px; }
+.machine-ui .pctl .stp { background:#14283d; border-color:#344e66; padding:11px 12px; border-radius:10px; color:#e1edf8; }
+.machine-ui .pctl .stp:hover { background:#223b52; transform:none; box-shadow:none; }
+.machine-ui .pctl .stp.on { background:#294056; border-color:#d4b084; box-shadow:inset 3px 0 #e7bb87; }
+.machine-ui .pctl .stp:focus-visible { outline:2px solid #f0c58d; outline-offset:3px; }
+.machine-ui .pctl .stp .n { border-radius:8px; }
+.machine-ui .pctl .stp b { font-size:17px; }
+.machine-ui .pctl .stp div div { color:#b5cade; font-size:14px; line-height:1.55; margin-top:4px; }
+.machine-ui .pctl .stp:not(.on) > div > div { display:none; }
+.machine-ui .pctl .stp.on { padding-top:16px; padding-bottom:16px; }
+.machine-ui .pctl .role { font-size:11px; border-radius:4px; padding:2px 5px; }
+.machine-ui .m336 span { border-radius:6px; }
+.machine-ui .btn { padding:8px 11px; font-size:14px; }
+.machine-ui .seg button { min-height:30px; font-size:13px; padding:5px 8px; }
+.machine-ui .vbtn { top:50px; right:12px; }
+.machine-ui .stg { gap:5px; }
+.machine-ui .stg span { font-size:13px; padding:5px 9px; border-radius:6px; }
+.machine-ui .stg span.on { transform:none; box-shadow:none; }
+.machine-ui .hud { max-width:85%; bottom:35px; padding:9px 12px; background:#102337ed; border-color:#4e677c; font-size:14px; }
+.machine-ui .hud .mono { line-height:1.6; font-size:13px; }
+.machine-ui .mag { left:12px; right:auto; bottom:9px; font-size:11px; border-radius:5px; background:#0a1829df; }
+.machine-ui .mban { border-left-width:3px; font-size:17px; border-radius:6px; background:#20384d; }
+.machine-ui .mstack div { padding:8px 12px; background:#14283e; border-color:#354f68; }
+.machine-ui .mstack div.on { transform:none; box-shadow:none; }
+.machine-ui .dro { gap:8px; padding-top:8px; border-top:1px solid #3a526a; }
+.machine-ui .dro .gp { background:#102337; border-color:#3a526a; padding:8px; }
+.machine-ui .dro .gp h4 { font-size:14px; filter:brightness(1.5); margin-bottom:7px; }
+.machine-ui .dro .r { padding:3px 4px; font-size:13px; color:#b2c7db; }
+.machine-ui .mchips span { border-radius:5px; font-size:12px; }
+.machine-ui .sbody > .card { background:#193045; border-color:#3b546b; padding:10px 14px; }
+.machine-ui input[type=range] { accent-color:#e9b97f; }
+.machine-ui .mread > div { background:#153047; border-color:#3f5e77; padding:12px; }
+.machine-ui .mread span { color:#b4cade; }
+.machine-ui.machine-focus .sbody > .grid { grid-template-columns:minmax(0,1fr)!important; }
+.machine-ui.machine-focus:not(.machine-page-1) .sbody > .grid > :nth-child(2) { display:none; }
+.machine-ui.machine-focus.machine-page-1 .sbody > .grid > :first-child { display:none; }
+.machine-ui.machine-page-5 .card { background:#edf2f7; color:#182c40; }
+.machine-ui.machine-page-5 h2 { color:#203a52; font-size:22px; }
+.machine-ui.machine-page-5 .mx td,.machine-ui.machine-page-5 .mx th { font-size:15px; padding:7px 9px; }
+.machine-ui.machine-page-5 .mx .c0 { color:#607086; }
+@media(max-height:780px) {
+ .machine-ui .pctl { padding:12px; gap:7px; }
+ .machine-ui .pctl .stp { padding:9px 10px; }
+ .machine-ui .pctl .stp div div { font-size:13px; }
+}

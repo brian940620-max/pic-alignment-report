@@ -1,0 +1,88 @@
+/* Scoped research presentation: only the seven progress slides. */
+.progress-ui [hidden] { display:none!important; }
+.progress-ui .sch .axis-highlight { color:#152a3f;background:#ffdc98;border:1px solid #fff1d6;margin-top:-14px; }
+.progress-ui .presenter-tools { display:flex;justify-content:flex-end;gap:8px;position:absolute;right:0;top:-52px;z-index:5; }
+.progress-ui:has(.presenter-tools) .sbody { overflow:visible; }
+.progress-ui .presenter-tools button[aria-pressed=true] { background:#c6e7f4;color:#102c44; }
+.progress-ui.demo-focus .sbody > .grid.grow { grid-template-columns:1fr!important; }
+.progress-ui.demo-focus .sbody > .grid.grow > .col:nth-child(2) { display:none; }
+.progress-ui .derivation { display:none; }
+.progress-ui.show-derivation .derivation { display:block; }
+.progress-ui.show-derivation .talk-summary { display:none; }
+.progress-ui .talk-summary { padding:4px 0 8px; }
+.progress-ui .talk-summary h2 { font-size:26px; }
+.progress-ui .talk-summary p { font-size:19px;line-height:1.6;color:#b6cde1;margin:10px 0; }
+.progress-ui .talk-equation { font:36px 'Cambria Math',serif;color:#f1c58e;margin:16px 0; }
+.progress-ui:not(.show-derivation) .eqcol .eqlive { font-size:15px;line-height:1.8;margin-bottom:8px; }
+.progress-ui:not(.show-derivation) .eqcol .slider { margin:6px 0; }
+.progress-ui .axis-status { position:absolute;bottom:12px;left:12px;right:12px;background:#18344ce8;padding:10px 12px;border-left:3px solid #f1c58e;color:#e4eff8;font-size:16px;z-index:3; }
+.progress-ui .axis-active { background:#294965;border-radius:5px;outline:1px solid #7ab8d0; }
+.progress-ui .demo-presets { display:flex;gap:5px;flex-wrap:wrap;margin-bottom:10px; }
+.progress-ui .demo-presets .btn { padding:6px 9px;font-size:14px; }
+.progress-ui .demo-presets .on { border-color:#f1c58e;color:#f1c58e; }
+.progress-ui .preset-title { color:#adcadf;font-size:14px; }
+.progress-ui .result-card { transition:background .2s,border-color .2s; }
+.progress-ui .result-active { border-color:#f1c58e!important;background:#27415a!important; }
+.progress-ui .result-row:focus-visible { outline:1px solid #83c4dc; }
+.progress-ui .tl .previous-work { opacity:.55; }
+.progress-ui .figure-dialog { border:1px solid #7897b0;border-radius:12px;background:#14283d;padding:16px;max-width:92vw;max-height:90vh; }
+.progress-ui .figure-dialog::backdrop { background:#020b18dc; }
+.progress-ui .figure-dialog img { display:block;max-width:85vw;max-height:78vh;object-fit:contain;margin-top:12px; }
+.progress-ui .figc img { cursor:zoom-in; }
+.progress-ui { --panel:#101f34; --edge:#30445e; }
+.progress-ui .stitle { margin:4px 0 16px; }
+.progress-ui .stitle h1 { font-size:30px; letter-spacing:.2px; font-weight:650; }
+.progress-ui .stitle .kick { box-shadow:none; background:#f1b977; border-radius:5px; }
+.progress-ui .card { border-radius:10px; box-shadow:none; }
+.progress-ui .card.dark { background:linear-gradient(145deg,#122238,#0c182a); border:1px solid #30445e; }
+.progress-ui .grid { gap:16px; }
+.progress-ui .card:not(.dark) { background:#edf2f7; border-color:#c8d5e4; }
+.progress-ui .figc { padding:12px; }
+.progress-ui .figc img { border-radius:3px; }
+.progress-ui .src { font-size:13px; }
+.progress-ui .sl-top { font-size:15px; margin-bottom:5px; }
+.progress-ui .sl-val { color:#ffd199; font-variant-numeric:tabular-nums; }
+.progress-ui input[type=range] { appearance:none; height:5px; background:#3b526d; border-radius:4px; cursor:pointer; margin:10px 0 12px; }
+.progress-ui input[type=range]::-webkit-slider-thumb { appearance:none; width:17px; height:17px; border-radius:50%; background:#92d8f1; border:3px solid #e2f5ff; box-shadow:0 0 0 4px #92d8f115; }
+.progress-ui .seg { border:1px solid #526b85; border-radius:7px; }
+.progress-ui .card.dark .seg button { padding:7px 11px; background:#102036; color:#bacfe4; }
+.progress-ui .card.dark .seg button.on { background:#c6e7f4; color:#102c44; }
+.progress-ui button:focus-visible,.progress-ui input:focus-visible { outline:2px solid #ffd199; outline-offset:3px; }
+.progress-ui .btn { padding:8px 16px; background:#255777; box-shadow:none; }
+.progress-ui .btn.ghost { background:#1b3047; color:#d5e6f5; border:1px solid #52708b; }
+.progress-ui .tl { padding-top:16px; }
+.progress-ui .tl::before { top:38px; height:2px; background:#4e7194; box-shadow:none; }
+.progress-ui .tl .dot { background:#23425a; border:2px solid #83b6cd; color:#d8ecf7; box-shadow:none; }
+.progress-ui .tl .now .dot { background:#ffd199; border-color:#ffd199; color:#17263b; }
+.progress-ui .tl .dt { color:#a9bed3; }
+.progress-ui .pr-h { font-size:22px; }
+.progress-ui .pr-ul,.progress-ui .pr-ol { font-size:19px; line-height:1.65; }
+.progress-ui .pr-bridge { border-radius:5px; border-width:0 0 0 3px; border-color:#f1b977; background:#20344c; padding:14px 10px; }
+.progress-ui .pr-bridge span.hot { text-shadow:none; }
+.progress-ui .mcard { border-top:3px solid #83a7c8; }
+.progress-ui .mcard .tex { color:#e3eef7; }
+.progress-ui .mcard h2 { font-size:23px; }
+.progress-ui .mcard ul { font-size:16px; }
+.progress-ui .st3 > div { border-radius:7px; border-left:4px solid #a3cce1; background:#1b324c !important; }
+.progress-ui .st3 > div:last-child { background:#433020 !important; border-left-color:#f1b977; }
+.progress-ui .zsteps span { border-radius:4px; padding:8px 2px; }
+.progress-ui .eqcol { padding:12px 15px; }
+.progress-ui .eqcol .eqh { font-size:14px; color:#c0d8ed; }
+.progress-ui .eqcol .tex.xs { font-size:15px; padding:1px 0; }
+.progress-ui .eqcol .slider { margin:0; flex-shrink:0; }
+.progress-ui .eqcol input[type=range] { margin:5px 0 6px; }
+.progress-ui .eqcol .seg { flex-shrink:0; }
+.progress-ui .eqcol .sl-top { margin-bottom:0; }
+.progress-ui .eqcol .seg button { padding:4px 8px; }
+.progress-ui .sch .c3l.waist { margin-top:-32px; }
+.progress-ui .sch .c3l.lens { margin-top:-64px; }
+.progress-ui .sch .c3l.layer.on { margin-top:-4px; }
+.progress-ui .sch .c3l.dim { margin-top:20px; }
+.progress-ui .eqcol .eqlive { background:#20354d; border-color:#52708b; padding:8px; font-size:14px; }
+.progress-ui .sch .ttl { left:12px; right:12px; border-radius:4px; font-size:14px; line-height:1.5; background:#102036e8; padding:8px 10px; }
+.progress-ui .six { gap:8px 16px; padding-bottom:12px; border-bottom:1px solid #39516a; }
+.progress-ui .cover-txt { top:62px; max-width:710px; }
+.progress-ui .cover-txt h1 { font-size:82px; letter-spacing:1px; background:none; -webkit-text-fill-color:#f1f5fa; }
+.progress-ui .cover-txt .lead { font-size:23px; line-height:1.65; max-width:680px; }
+.progress-ui .cover-txt .kicker { color:#f1c58e; letter-spacing:1px; }
+@media(prefers-reduced-motion:reduce) { .progress-ui { animation:none!important; } .progress-ui .tl .nd.now .dot { animation:none; } }
