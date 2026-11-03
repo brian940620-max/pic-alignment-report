@@ -77,7 +77,7 @@ function drawBars(g, spec) {
 // 物鏡 NA 取 Mitutoyo M Plan Apo 型錄值；景深 DOF = λ/(2NA²)（同型錄的定義，λ = 0.55 µm）；感測器 FLIR CM3 像素 3.69 µm。
 const LAMBDA = 0.55, PIX = 3.69;
 const LENS = { 2: { na: 0.055 }, 5: { na: 0.14 }, 10: { na: 0.28 } };
-const VW = 480, VH = 300, GAP = 10, R = 62.5, CORE = 4.5;   // 畫面範圍、間隙、光纖半徑、纖芯半徑（µm）
+const VW = 480, VH = 240, GAP = 10, R = 62.5, CORE = 4.5;   // 示意視野、尖端到晶片間隙、光纖半徑、纖芯半徑（µm）
 const dofOf = (M) => LAMBDA / (2 * LENS[M].na ** 2);
 // 物方模糊（高斯 σ，µm）：繞射 σ ≈ 0.21λ/NA；離焦 δ 的幾何模糊圓直徑 ≈ 2·NA·|δ|，σ ≈ 直徑/4
 const sigmaOf = (M, dz) => { const na = LENS[M].na, sd = 0.21 * LAMBDA / na, sg = (2 * na * Math.abs(dz)) / 4; return Math.hypot(sd, sg); };
@@ -92,26 +92,119 @@ function fiberProfile(y) {
   return v;
 }
 
-function drawFiber(ctx, s, xa, xb, tipX) {   // 在 µm→px 座標（s px/µm）畫一段水平光纖；tipX＝端面（null＝沒有）
-  const X = (x) => (x + VW / 2) * s, Y = (y) => (y + VH / 2) * s;
-  const lw = (um) => Math.max(um * s, 0.6);
-  ctx.fillStyle = 'rgba(150,160,175,.20)'; ctx.fillRect(X(xa), Y(-R), X(xb) - X(xa), Y(R) - Y(-R));
-  ctx.fillStyle = 'rgba(190,200,215,.20)'; ctx.fillRect(X(xa), Y(-CORE), X(xb) - X(xa), Y(CORE) - Y(-CORE));
-  for (const [y, um, c] of [[-R, 2.4, '#eef1f6'], [R, 2.4, '#eef1f6'], [-(R - 7), 1.6, 'rgba(230,235,245,.45)'], [R - 7, 1.6, 'rgba(230,235,245,.45)'], [-CORE, 1, 'rgba(230,235,245,.3)'], [CORE, 1, 'rgba(230,235,245,.3)']]) {
-    ctx.fillStyle = c; ctx.fillRect(X(xa), Y(y) - lw(um) / 2, X(xb) - X(xa), lw(um));
+function drawFiber(ctx, s, xa, xb, tipX = xb) {
+  // Tapered glass body with a rounded lens apex; dimensions are illustrative.
+  ctx.save(); ctx.translate(VW / 2 * s, VH / 2 * s); ctx.scale(s, s);
+  const shoulder = tipX - 108, lens = tipX - 8;
+  const outline = () => {
+    ctx.beginPath(); ctx.moveTo(xa, -R); ctx.lineTo(shoulder, -R);
+    ctx.bezierCurveTo(shoulder + 25, -R, lens - 27, -12, lens, -8);
+    ctx.bezierCurveTo(tipX + 2.7, -8, tipX + 2.7, 8, lens, 8);
+    ctx.bezierCurveTo(lens - 27, 12, shoulder + 25, R, shoulder, R);
+    ctx.lineTo(xa, R); ctx.closePath();
+  };
+  const glass = ctx.createLinearGradient(0, -R, 0, R);
+  glass.addColorStop(0, '#c9e3eb'); glass.addColorStop(.05, '#6c919f');
+  glass.addColorStop(.2, '#2c4658'); glass.addColorStop(.48, '#608492');
+  glass.addColorStop(.54, '#8faeaf'); glass.addColorStop(.75, '#253e50'); glass.addColorStop(1, '#9dbdc8');
+  outline(); ctx.fillStyle = glass; ctx.fill(); ctx.strokeStyle = '#d6e9ed'; ctx.lineWidth = .85; ctx.stroke();
+  ctx.save(); outline(); ctx.clip();
+  ctx.fillStyle = '#e6cd9e35'; ctx.fillRect(xa, -CORE, tipX - xa, CORE * 2);
+  ctx.strokeStyle = '#f2d2a6aa'; ctx.lineWidth = .9;
+  ctx.beginPath(); ctx.moveTo(xa, 0); ctx.lineTo(lens, 0); ctx.stroke();
+  ctx.strokeStyle = '#e7f4f578'; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.moveTo(xa, -R + 9); ctx.lineTo(shoulder, -R + 9);
+  ctx.bezierCurveTo(shoulder + 26, -R + 9, lens - 30, -10, lens - 4, -6); ctx.stroke();
+  ctx.restore();
+  ctx.strokeStyle = '#fff2dc'; ctx.lineWidth = 1.4;
+  ctx.beginPath(); ctx.moveTo(lens, -8); ctx.bezierCurveTo(tipX + 2.7, -8, tipX + 2.7, 8, lens, 8); ctx.stroke();
+  ctx.restore();
+}
+
+// Microscope-style illustration, not a photograph or a specific foundry layout.
+// Geometry and texture are cached with the in-focus PIC layer.
+function drawPIC(ctx, s) {
+  ctx.save(); ctx.translate(VW / 2 * s, VH / 2 * s); ctx.scale(s, s);
+  const edge = GAP / 2, end = VW / 2 + 20, top = -88, bottom = 88;
+  let seed = 22017;
+  const random = () => { seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0; return seed / 4294967296; };
+  ctx.save(); ctx.beginPath(); ctx.rect(edge, top, end - edge, bottom - top); ctx.clip();
+  const silicon = ctx.createLinearGradient(edge, top, end, bottom);
+  silicon.addColorStop(0, '#77797c'); silicon.addColorStop(.3, '#52555a');
+  silicon.addColorStop(.72, '#3c4046'); silicon.addColorStop(1, '#595d62');
+  ctx.fillStyle = silicon; ctx.fillRect(edge, top, end - edge, bottom - top);
+  // Low-contrast surface grain, without the previous diagram grid.
+  for (let i = 0; i < 6500; i++) {
+    const x = edge + random() * (end - edge), y = top + random() * (bottom - top);
+    ctx.fillStyle = i % 2 ? '#f1f2f30a' : '#06080b12';
+    ctx.fillRect(x, y, .18 + random() * .55, .16 + random() * .3);
   }
-  if (tipX != null) { ctx.fillStyle = '#f4f6fa'; ctx.fillRect(X(tipX) - lw(2.4) / 2, Y(-R), lw(2.4), Y(R) - Y(-R)); }
+  // Oxide openings and etched waveguide paths: thin, recessed, unlit.
+  for (const y of [-32, 0, 32]) {
+    ctx.fillStyle = '#23282e'; ctx.fillRect(edge + 3, y - 3.8, end - edge, 7.6);
+    ctx.strokeStyle = '#acafb26b'; ctx.lineWidth = .45;
+    ctx.strokeRect(edge + 3, y - 3.8, end - edge, 7.6);
+    ctx.fillStyle = '#83888d'; ctx.beginPath();
+    ctx.moveTo(edge + 3, y - 2.7); ctx.lineTo(edge + 68, y - 1.6);
+    ctx.lineTo(end, y - 1.6); ctx.lineTo(end, y + 1.6);
+    ctx.lineTo(edge + 68, y + 1.6); ctx.lineTo(edge + 3, y + 2.7); ctx.closePath(); ctx.fill();
+    ctx.strokeStyle = '#d5d7d9'; ctx.lineWidth = .55;
+    ctx.beginPath(); ctx.moveTo(edge + 3, y); ctx.lineTo(edge + 90, y); ctx.lineTo(end, y); ctx.stroke();
+  }
+  // Metal routing and recessed passivation windows around bonding pads.
+  for (const row of [-1, 1]) for (let col = 0; col < 3; col++) {
+    const x = edge + 74 + col * 57, y = row < 0 ? -78 : 50;
+    const routeY = row * (17 + col * 3);
+    ctx.strokeStyle = '#1a1d22'; ctx.lineWidth = 3.6;
+    ctx.beginPath(); ctx.moveTo(x + 17, y + 12); ctx.lineTo(x + 17, routeY);
+    ctx.lineTo(x + 39, routeY); ctx.stroke();
+    ctx.strokeStyle = '#a5a6a7'; ctx.lineWidth = 1.9; ctx.stroke();
+    ctx.fillStyle = '#24272c'; ctx.fillRect(x - 2, y - 2, 39, 28);
+    const metal = ctx.createLinearGradient(x, y, x + 35, y + 24);
+    metal.addColorStop(0, '#d7d8d8'); metal.addColorStop(.18, '#aaabad');
+    metal.addColorStop(.65, '#8a8d90'); metal.addColorStop(1, '#c3c5c7');
+    ctx.fillStyle = metal; ctx.fillRect(x, y, 35, 24);
+    ctx.strokeStyle = '#f4f4f480'; ctx.lineWidth = .6; ctx.strokeRect(x + .7, y + .7, 33.6, 22.6);
+    ctx.strokeStyle = '#55595f'; ctx.strokeRect(x + 3.2, y + 3.2, 28.6, 17.6);
+    ctx.strokeStyle = '#eeeeee15'; ctx.lineWidth = .35;
+    for (let k = 0; k < 12; k++) {
+      const sy = y + 4 + k * 1.35; ctx.beginPath(); ctx.moveTo(x + 4, sy); ctx.lineTo(x + 31, sy + .35); ctx.stroke();
+    }
+  }
+  // Small lithographic registration marks, set back from the polished edge.
+  for (const y of [-63, 63]) {
+    ctx.strokeStyle = '#24282d'; ctx.lineWidth = 1.6; ctx.strokeRect(edge + 21, y - 6, 12, 12);
+    ctx.strokeStyle = '#c7c9cb'; ctx.lineWidth = .7;
+    ctx.beginPath(); ctx.moveTo(edge + 27, y - 10); ctx.lineTo(edge + 27, y + 10);
+    ctx.moveTo(edge + 17, y); ctx.lineTo(edge + 37, y); ctx.stroke();
+  }
+  // Diced edge: a narrow dark facet and intermittent specular highlights.
+  const facet = ctx.createLinearGradient(edge, 0, edge + 4.5, 0);
+  facet.addColorStop(0, '#c5c7c9'); facet.addColorStop(.18, '#606369');
+  facet.addColorStop(.5, '#292e35'); facet.addColorStop(1, '#92969b');
+  ctx.fillStyle = facet; ctx.fillRect(edge, top, 4.5, bottom - top);
+  for (let y = top; y < bottom; y += .75) {
+    ctx.fillStyle = random() > .5 ? '#e1e2e370' : '#11151b80';
+    ctx.fillRect(edge + random() * 1.2, y, .3 + random() * 1.7, .2 + random() * .5);
+  }
+  for (const y of [-32, 0, 32]) {
+    ctx.fillStyle = '#20252c'; ctx.fillRect(edge, y - 3, 4.5, 6);
+    ctx.fillStyle = '#c4c9cd'; ctx.fillRect(edge + .6, y - 1.4, 3.9, 2.8);
+  }
+  ctx.strokeStyle = '#c5c8cb90'; ctx.lineWidth = .6;
+  ctx.beginPath(); ctx.moveTo(edge, top); ctx.lineTo(end, top); ctx.stroke();
+  ctx.restore(); ctx.restore();
 }
 
 function camSlide(body) {
-  const st = { M: 10, dz: 8, th: 0, emphasis: true, play: false, t: 0 };
+  const st = { M: 10, dz: 4, th: 0, play: false, t: 0 };
   const requestDraw = frameTask(draw);
   const dy = 0.25, ys = Array.from({ length: 761 }, (_, i) => -95 + i * dy);
   const convolve = profileConvolver(ys.map(fiberProfile), dy), references = new Map();
   let imageKey = '', profileKey = '', currentProfile;
   // Presentation gain applies only to defocus, never to the optical estimates.
-  const displaySigma = (M, dz) => sigmaOf(M, dz * (st.emphasis ? 5 : 1));
-  const cv = h('canvas'), prof = h('canvas', { style: { width: '100%', height: '100%', display: 'block' } });
+  const displaySigma = (M, dz) => sigmaOf(M, dz * 5);
+  const cv = h('canvas', { 'aria-label': '透鏡光纖對 PIC：焦面固定於晶片，僅光纖隨離焦量變模糊' }), prof = h('canvas', { style: { width: '100%', height: '100%', display: 'block' } });
   const hud = h('div', { class: 'cam-hud' }), stat = h('div', { class: 'cam-stat ok' });
   const buf = document.createElement('canvas'), bx = buf.getContext('2d');
   const mov = document.createElement('canvas'), mx = mov.getContext('2d');
@@ -136,12 +229,12 @@ function camSlide(body) {
     const key = `${N}x${Hh}`; if (key === bgKey) return; bgKey = key;
     bg.width = N; bg.height = Hh;
     const gr = gx.createRadialGradient(N * 0.5, Hh * 0.45, 10, N * 0.5, Hh * 0.5, N * 0.7);
-    gr.addColorStop(0, '#20232a'); gr.addColorStop(1, '#0b0c10'); gx.fillStyle = gr; gx.fillRect(0, 0, N, Hh);
+    gr.addColorStop(0, '#142737'); gr.addColorStop(1, '#070f1c'); gx.fillStyle = gr; gx.fillRect(0, 0, N, Hh);
     gx.filter = `blur(${Math.max(2, 18 * s)}px)`;
     for (const [x, y, r, a] of [[0.18, 0.2, 40, 0.10], [0.72, 0.82, 55, 0.08], [0.88, 0.15, 30, 0.07]]) { gx.fillStyle = `rgba(200,205,215,${a})`; gx.beginPath(); gx.arc(x * N, y * Hh, r * s, 0, 7); gx.fill(); }
     gx.filter = 'none';
     const img = gx.getImageData(0, 0, N, Hh), d = img.data;
-    for (let i = 0; i < d.length; i += 4) { const n = (Math.random() - 0.5) * 10; d[i] += n; d[i + 1] += n; d[i + 2] += n; }
+    for (let i = 0; i < d.length; i += 4) { const n = (Math.random() - 0.5) * 2; d[i] += n; d[i + 1] += n; d[i + 2] += n; }
     gx.putImageData(img, 0, 0);
   }
 
@@ -155,17 +248,17 @@ function camSlide(body) {
     if (opticalKey !== `${M}:${N}:${Hh}`) {
       opticalKey = `${M}:${N}:${Hh}`;
       fixedImage.width = refImage.width = N; fixedImage.height = refImage.height = Hh;
-      fx.drawImage(bg, 0, 0);
-      mx.clearRect(0, 0, N, Hh); drawFiber(mx, s, GAP / 2, VW / 2 + 20, GAP / 2);
+      mx.clearRect(0, 0, N, Hh); drawPIC(mx, s);
       fx.filter = `blur(${(sigmaOf(M, 0) * s).toFixed(2)}px)`; fx.drawImage(mov, 0, 0); fx.filter = 'none';
       mx.clearRect(0, 0, N, Hh); drawFiber(mx, s, -VW / 2 - 20, tipX, tipX);
-      rx.drawImage(fixedImage, 0, 0);
+      rx.drawImage(bg, 0, 0);
       rx.filter = `blur(${sigmaOf(M, 0) * s}px)`; rx.drawImage(mov, 0, 0); rx.filter = 'none';
+      rx.drawImage(fixedImage, 0, 0);
     }
-    const nextImageKey = `${M}:${st.dz}:${st.th}:${st.emphasis}`;
+    const nextImageKey = `${M}:${st.dz}:${st.th}`;
     if (imageKey !== nextImageKey) {
       imageKey = nextImageKey;
-      bx.filter = 'none'; bx.drawImage(fixedImage, 0, 0);
+      bx.filter = 'none'; bx.drawImage(bg, 0, 0);
       // At zero tilt the blur is uniform: one pass is identical to 24 clipped passes.
       const K = st.th === 0 ? 1 : 24, xL = -VW / 2;
       for (let k = 0; k < K; k++) {
@@ -178,16 +271,23 @@ function camSlide(body) {
         bx.filter = `blur(${sg.toFixed(2)}px)`; bx.drawImage(mov, 0, 0); bx.restore();
       }
       bx.filter = 'none';
+      // Composite the sharp PIC last: defocus applies only to the fiber layer.
+      bx.drawImage(fixedImage, 0, 0);
     }
 
-    // 固定 84 × 84 µm 的端面上緣區域；兩幅畫布各自定尺寸，避免比例與裁切漂移。
+    // Crop around the fiber core and PIC input port using the same physical area.
     details.forEach((g, i) => {
       if (!g.w || !g.h) return;
-      const dc = g.ctx, size = Math.min(g.w, g.h), ox = (g.w - size) / 2, oy = (g.h - size) / 2;
+      const dc = g.ctx, scale = Math.min(g.w / 140, g.h / 64), dw = 140 * scale, dh = 64 * scale, ox = (g.w - dw) / 2, oy = (g.h - dh) / 2;
       dc.fillStyle = '#080f1b'; dc.fillRect(0, 0, g.w, g.h);
       dc.imageSmoothingEnabled = true;
-      dc.drawImage(i ? buf : refImage, (VW / 2 - 42) * s, (VH / 2 - R - 42) * s, 84 * s, 84 * s, ox, oy, size, size);
-      dc.strokeStyle = '#334b65'; dc.strokeRect(ox + .5, oy + .5, size - 1, size - 1);
+      dc.filter = 'grayscale(1)';
+      dc.drawImage(i ? buf : refImage, (VW / 2 - 85) * s, (VH / 2 - 32) * s, 140 * s, 64 * s, ox, oy, dw, dh);
+      dc.filter = 'none';
+      dc.strokeStyle = '#72d6cb'; dc.lineWidth = 1;
+      const px = ox + (85 + GAP / 2) * scale, py = oy + dh / 2;
+      dc.beginPath(); dc.moveTo(px + 7, py - 13); dc.lineTo(px + 13, py - 13); dc.lineTo(px + 13, py - 7);
+      dc.moveTo(px + 7, py + 13); dc.lineTo(px + 13, py + 13); dc.lineTo(px + 13, py + 7); dc.stroke();
     });
 
     // 顯示：保持比例置中；低倍率時用最近鄰放大，看得到像素
@@ -195,38 +295,46 @@ function camSlide(body) {
     if (w) {
       ctx.fillStyle = '#05080f'; ctx.fillRect(0, 0, w, H);
       const sc = Math.min(w / N, H / Hh), dw = N * sc, dh = Hh * sc, ox = (w - dw) / 2, oy = (H - dh) / 2;
-      ctx.imageSmoothingEnabled = sc < 1; ctx.drawImage(buf, ox, oy, dw, dh);
+      ctx.imageSmoothingEnabled = sc < 1; ctx.filter = 'grayscale(1)'; ctx.drawImage(buf, ox, oy, dw, dh); ctx.filter = 'none';
       // 比例尺 50 µm
       const sb = 50 * s * sc; ctx.fillStyle = '#fff'; ctx.fillRect(ox + 18, oy + dh - 26, sb, 4);
       ctx.font = '600 14px system-ui, "Microsoft JhengHei", sans-serif'; ctx.textAlign = 'left'; ctx.textBaseline = 'bottom'; ctx.fillText('50 µm', ox + 18, oy + dh - 30);
       ctx.textAlign = 'right'; ctx.fillStyle = 'rgba(255,255,255,.75)'; ctx.font = '13.5px system-ui, "Microsoft JhengHei", sans-serif';
-      ctx.fillText(`焦面對在右側固定光纖；間隙 ${GAP} µm`, ox + dw - 14, oy + dh - 10);
-      ctx.strokeStyle = '#72b8cf'; ctx.lineWidth = 1.2;
-      ctx.strokeRect(ox + (VW / 2 - 42) * s * sc, oy + (VH / 2 - R - 42) * s * sc, 84 * s * sc, 84 * s * sc);
+      ctx.textAlign = 'left'; ctx.fillStyle = '#f1d4ad';
+      ctx.fillText('透鏡光纖', ox + 18, oy + 65);
+      ctx.fillStyle = '#9ee4db'; ctx.fillText('PIC · 固定焦面', ox + dw * .59, oy + 65);
+      ctx.strokeStyle = '#83c7cf66'; ctx.lineWidth = 1; ctx.setLineDash([5, 5]);
+      ctx.strokeRect(ox + (VW / 2 - 85) * s * sc, oy + (VH / 2 - 32) * s * sc, 140 * s * sc, 64 * s * sc); ctx.setLineDash([]);
+      const portX = ox + (VW / 2 + GAP / 2) * s * sc, portY = oy + dh / 2;
+      ctx.strokeStyle = '#8de0d3'; ctx.beginPath();
+      ctx.moveTo(portX + 9, portY - 12); ctx.lineTo(portX + 20, portY - 12); ctx.lineTo(portX + 20, portY + 12); ctx.lineTo(portX + 9, portY + 12); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(portX + 20, portY + 12); ctx.lineTo(portX + 44, portY + 43); ctx.lineTo(portX + 128, portY + 43); ctx.stroke();
+      ctx.fillStyle = '#b7eee4'; ctx.font = '12px system-ui, "Microsoft JhengHei", sans-serif'; ctx.fillText('入光口 · 對焦基準', portX + 46, portY + 39);
+      ctx.fillStyle = '#9aaec2'; ctx.fillText(`尖端間隙 ${GAP} µm · 幾何示意`, ox + 18, oy + dh - 8);
     }
 
     // 數字
     const dof = dofOf(M), dTip = Math.abs(dzAt(tipX)), inF = dTip <= dof / 2;
     const dh = Math.abs((tipX + VW / 2) * Math.tan((st.th * Math.PI) / 180));
-    hud.textContent = `上視模擬 · ${M}X · NA ${LENS[M].na}`;
-    effectNote.textContent = st.emphasis ? '失焦效果 ×5 · 示意強化；光學讀值維持原估算' : '光學估算顯示 · 無失焦強化';
+    hud.textContent = `上視顯微示意  /  ${M}X  /  NA ${LENS[M].na}`;
+    effectNote.textContent = '失焦效果 ×5 · 示意強化；光學讀值維持原估算';
     stat.className = `cam-stat ${inF ? 'ok' : 'bad'}`;
-    stat.textContent = inF ? '端面在景深內' : `失焦：超出景深 ${(dTip / (dof / 2)).toFixed(dTip / (dof / 2) < 10 ? 1 : 0)} 倍`;
+    stat.textContent = inF ? '光纖在焦 · PIC 清晰' : `僅光纖失焦 · ${st.dz > 0 ? '+' : ''}${st.dz.toFixed(1)} µm`;
     rd.px.textContent = `${p.toFixed(2)} µm/px`;
     rd.dof.textContent = `±${(dof / 2).toFixed(dof < 10 ? 2 : 1)} µm`;
     rd.tip.textContent = `${dTip.toFixed(1)} µm`; rd.tip.classList.toggle('hot', !inF);
     rd.blur.textContent = `${(2 * LENS[M].na * dTip).toFixed(1)} µm`;
     rd.dh.textContent = `${dh.toFixed(1)} µm`; rd.dh.classList.toggle('hot', dh > dof / 2);
 
-    // 剖面：穿過移動光纖（端面後 40 µm）的亮度，含模糊與像素取樣
+    // Approximate shaft profile, 140 µm behind the lens apex (outside the taper).
     if (!references.has(M)) references.set(M, convolve(sigmaOf(M, 0), p));
-    const sig = displaySigma(M, dzAt(tipX - 40)), nextProfileKey = `${M}:${sig}`;
+    const sig = displaySigma(M, dzAt(tipX - 140)), nextProfileKey = `${M}:${sig}`;
     if (profileKey !== nextProfileKey) { currentProfile = convolve(sig, p); profileKey = nextProfileKey; }
     const ref = references.get(M), cur = currentProfile;
     const slope = (a) => { let m = 0; for (let i = 1; i < a.length; i++) m = Math.max(m, Math.abs(a[i] - a[i - 1])); return m; };
     const sharp = slope(cur) / slope(ref);
     rd.edge.textContent = `${(sharp * 100).toFixed(0)}%`; rd.edge.classList.toggle('hot', sharp < 0.5);
-    const message = sharp < .3 ? '亮邊擴散、端面變糊 → 找邊與定位更困難' : sharp < .7 ? '邊緣對比下降 → 固定門檻更難穩定' : '亮邊清楚 → 容易辨識端面位置';
+    const message = sharp < .3 ? 'PIC 焦面固定｜光纖輪廓擴散，尖端定位更困難' : sharp < .7 ? 'PIC 焦面固定｜光纖邊緣對比下降' : 'PIC 焦面固定｜透鏡光纖輪廓清晰';
     if (featureState.textContent !== message) featureState.textContent = message;
     featureState.classList.toggle('degraded', sharp < .7);
     const { ctx: pc, w: pw, h: ph } = P;
@@ -237,14 +345,13 @@ function camSlide(body) {
       for (const yy of [-R, R]) { pc.strokeStyle = 'rgba(140,170,230,.3)'; pc.beginPath(); pc.moveTo(X(yy), m.t); pc.lineTo(X(yy), ph - m.b); pc.stroke(); }
       const line = (arr, col, dash, lwd) => { pc.strokeStyle = col; pc.lineWidth = lwd; pc.setLineDash(dash); pc.beginPath(); arr.forEach((v, i) => (i ? pc.lineTo(X(ys[i]), Yv(v)) : pc.moveTo(X(ys[i]), Yv(v)))); pc.stroke(); pc.setLineDash([]); pc.lineWidth = 1; };
       line(ref, 'rgba(220,228,245,.6)', [5, 4], 1.4); line(cur, '#efc28c', [], 2.4);
-      pc.fillStyle = '#dfe8fa'; pc.textAlign = 'left'; pc.fillText('亮度剖面（虛線＝在焦，橘＝目前）', m.l, 9);
-      pc.fillStyle = '#93a6c6'; pc.textAlign = 'center'; pc.fillText('兩條亮邊＝傳統方法要找的邊', (X(-R) + X(R)) / 2, ph - 8);
+      pc.fillStyle = '#dfe8fa'; pc.textAlign = 'left'; pc.fillText('光纖本體剖面 · 虛線在焦／橘線目前', m.l, 9);
+      pc.fillStyle = '#93a6c6'; pc.textAlign = 'center'; pc.fillText('尖端後方 140 µm · 簡化亮度估算', (X(-R) + X(R)) / 2, ph - 8);
     }
   }
 
   const segM = segmented([{ id: '2', label: '2X' }, { id: '5', label: '5X' }, { id: '10', label: '10X' }], '10', (id) => { st.M = +id; requestDraw(); });
-  const segEffect = segmented([{ id: 'strong', label: '失焦強化 ×5' }, { id: 'estimate', label: '光學估算' }], 'strong', id => { st.emphasis = id === 'strong'; requestDraw(); });
-  const sDz = slider({ label: '端面離焦 Δz（上下偏）', min: -40, max: 40, step: 0.5, value: st.dz, unit: 'µm', onInput: (v) => { if (st.play) bPlay.click(); st.dz = v; requestDraw(); } });
+  const sDz = slider({ label: '光纖離開 PIC 焦面 Δz', min: -40, max: 40, step: 0.5, value: st.dz, unit: 'µm', onInput: (v) => { if (st.play) bPlay.click(); st.dz = v; requestDraw(); } });
   const sTh = slider({ label: '俯仰傾斜（手裝可達 ±5°）', min: -5, max: 5, step: 0.1, value: 0, unit: '°', onInput: (v) => { if (st.play) bPlay.click(); st.th = v; requestDraw(); } });
   const anim = loop((dt) => { st.t += dt; sDz.set(12 * Math.sin(st.t * 1.6) + 4 * Math.sin(st.t * 3.7), true); st.dz = sDz.get(); requestDraw.flush(); });
   const bPlay = h('button', { type: 'button', class: 'btn', 'aria-pressed': 'false', onclick: () => { st.play = !st.play; bPlay.setAttribute('aria-pressed', String(st.play)); bPlay.textContent = st.play ? 'Ⅱ 暫停晃動' : '▶ 播放：光纖上下晃 ±16 µm'; st.play ? anim.start() : anim.stop(); } }, '▶ 播放：光纖上下晃 ±16 µm');
@@ -253,18 +360,18 @@ function camSlide(body) {
 
   body.append(h('div', { class: 'camera-layout grow' },
     h('div', { class: 'camera-visual col' },
-      h('div', { class: 'cam fill' }, cv, hud, stat),
-      h('div', { class: 'camera-detail' }, ...detailCanvases.map((c, i) => h('figure', { class: 'camera-crop' }, h('figcaption', null, i ? '目前端面 · 放大對照' : '在焦參考 · 放大對照'), h('div', { class: 'camera-crop-canvas' }, c)))), featureState),
+      h('div', { class: 'cam fill' }, cv, hud, h('div', { class: 'camera-focus-lock' }, '◎ 焦點鎖定 PIC'), stat),
+      h('div', { class: 'camera-detail' }, ...detailCanvases.map((c, i) => h('figure', { class: 'camera-crop' }, h('figcaption', null, h('span', null, i ? '02  目前光纖' : '01  在焦參考'), h('small', null, 'PIC 焦面固定')), h('div', { class: 'camera-crop-canvas' }, c)))), featureState),
     h('div', { class: 'col camera-controls' },
       h('div', { class: 'card dark col' },
-        h('div', { class: 'k-h' }, '調整光纖姿態'),
-        h('div', { class: 'camera-optical-toolbar' }, segM.el, segEffect.el), effectNote,
+        h('div', { class: 'k-h' }, '透鏡光纖 · 離焦與傾斜'),
+        h('div', { class: 'camera-optical-toolbar' }, segM.el), effectNote,
         sDz.el, sTh.el,
         h('div', { class: 'row camera-focus-actions' }, bPlay, bSmall, bZero), readout),
       h('div', { class: 'card dark camera-profile' }, prof),
-      h('div', { class: 'camera-takeaway' }, h('b', null, 'ML 要解決：影像變糊，仍要估計姿態'),
-        h('p', null, '10X 景深僅 ±1.75 µm。亮邊退化後，單靠固定門檻找邊更容易不穩。'),
-        h('span', null, '雙視角 CNN 學習退化影像的整體特徵；下一頁比較模擬合格率。')))));
+      h('div', { class: 'camera-takeaway' }, h('b', null, '相機對焦 PIC，觀察光纖離焦'),
+        h('p', null, '晶片與入光口維持清晰；光纖離開焦面時，透鏡尖端與玻璃輪廓逐漸模糊。'),
+        h('span', null, '透鏡與波導幾何為示意；焦面清晰不代表耦合最佳，仍需光功率精對位。')))));
   body.prepend(h('style', null, CSS));
   body.closest('.slide').classList.add('sp22', 'camera-ui', 'camera-optics');
   requestDraw();
@@ -381,14 +488,14 @@ function finalSlide(body) {
         h('div', { class: 'k-h' }, '各難度表現'), h('div', { class: 'fill' }, bars),
         h('div', { class: 'src' }, '嚴格範圍：XY ≤10 µm、間隙 ≤12.5 µm、傾斜 ≤0.625°。虛線框為基準。'))),
     h('div', { class: 'col final-results' },
-      h('div', { class: 'card dark' }, h('div', { class: 'eyebrow' }, 'FINAL MODEL · 模擬'),
+      h('div', { class: 'card dark' }, h('div', { class: 'eyebrow' }, '原光纖對光纖基準 · 模擬'),
         h('div', { class: 'k-h' }, '最終模型誤差 p95'),
         h('div', { class: 'src' }, '位置單位 µm；傾斜單位 °'), p95),
       h('div', { class: 'card dark' }, h('div', { class: 'k-h' }, '交付與精對位銜接'),
-        h('p', null, '單一 CNN ＋鏡射測試時增強，先送進相機粗對位規格，再交由光訊號精對位。'),
-        h('div', { class: 'result-badge' }, '規格範圍達標率 100%')),
-      h('div', { class: 'camera-takeaway' }, h('b', null, '下一步：實機校正'),
-        h('p', null, '目前皆為模擬影像，難度為自訂。FLIR 相機已到、鏡頭未定；實機須量測 µm/px 與景深，再做 sim-to-real 校正。')))));
+        h('p', null, '以原光纖對光纖模型作為方法基準；轉用 PIC 時，需加入晶片邊緣、入光口與標記資料重新訓練及驗證。'),
+        h('div', { class: 'result-badge' }, '原基準規格達標率 100%')),
+      h('div', { class: 'camera-takeaway' }, h('b', null, '下一步：光纖對 PIC 驗證'),
+        h('p', null, '本頁數值皆來自原模擬測試，尚非 PIC 成績。須校正 µm/px、景深與標記到入光口的座標，再用光功率確認耦合。')))));
   body.prepend(h('style', null, CSS));
   body.closest('.slide').classList.add('sp22', 'camera-ui', 'camera-final');
   pick(VERS.length - 1); cur = VERS[VERS.length - 1].vals.slice();

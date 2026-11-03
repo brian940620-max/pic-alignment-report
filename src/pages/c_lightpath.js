@@ -43,6 +43,7 @@ export function mount(sec) {
   let pose = startPose();
   let tol = {};
   let zoomMode = 'near';
+  let sidePlane = 'x', planeSeg;
   let hw = 6;
   let flow = !matchMedia('(prefers-reduced-motion: reduce)').matches, flowTime = 0, frameTime = 0;
   const sls = { dx: [], dy: [], gap: [], tx: [], ty: [] };       // 各投影片的滑桿，同步用
@@ -54,7 +55,13 @@ export function mount(sec) {
   recompute();
 
   const mk = (key, label, min, max, step, unit, digits, scale = 1) => {
-    const s = slider({ label, min, max, step, value: 0, unit, digits, onInput: (v) => { pose[key] = v * scale; syncSliders(); draw(); } });
+    const s = slider({ label, min, max, step, value: 0, unit, digits, onInput: (v) => {
+      pose[key] = v * scale;
+      if (key === 'dx' || key === 'tx' || key === 'dy' || key === 'ty') {
+        sidePlane = key.endsWith('y') ? 'y' : 'x'; planeSeg?.set(sidePlane, true);
+      }
+      syncSliders(); draw();
+    } });
     s.scale = scale; sls[key].push(s);
     return s.el;
   };
@@ -118,6 +125,9 @@ export function mount(sec) {
     const facetCv = h('canvas', { class: 'cv', style: { height: '330px' } });
     const zoomSeg = segmented([{ id: 'near', label: '近距離' }, { id: 'far', label: '寬視野' }], zoomMode, (id) => { zoomMode = id; draw(); });
     zoomSeg.el.classList.add('ov');
+    planeSeg = segmented([{ id: 'x', label: '水平 XZ' }, { id: 'y', label: '垂直 YZ' }], sidePlane, id => { sidePlane = id; draw(); });
+    planeSeg.el.classList.add('optical-plane-toggle');
+    planeSeg.el.setAttribute('aria-label', '側視光路平面');
     const flowButton = h('button', { type: 'button', class: 'btn ghost optical-flow-toggle', 'aria-pressed': String(flow), onclick: () => {
       flow = !flow; flowButton.textContent = flow ? '暫停光流' : '播放光流'; flowButton.setAttribute('aria-pressed', String(flow));
       if (flow) lp.start(); draw();
@@ -126,8 +136,8 @@ export function mount(sec) {
     const meterCv = h('canvas', { style: { width: '100%', height: '32px', display: 'block' } });
     body.append(
       h('div', { class: 'grid alignment-views', style: { gridTemplateColumns: '2.1fr 1fr', flex: 'none' } },
-        h('div', { class: 'relv optical-side' }, h('h3', { class: 'view-heading' }, '側視光路'), sideCv, zoomSeg.el, flowButton,
-          h('div', { class: 'optical-view-note' }, '光纖外形、光流為示意 · 光腰與端面位置依模型')),
+        h('div', { class: 'relv optical-side' }, h('h3', { class: 'view-heading' }, '側視光路'), sideCv, zoomSeg.el, planeSeg.el, flowButton,
+          h('div', { class: 'optical-view-note' }, '拖曳 X／Y 或傾角會切換對應平面 · 外形與光流為示意')),
         h('div', { class: 'relv' }, h('h3', { class: 'view-heading' }, '端面重疊 · 橘色光點／藍色波導'), facetCv)),
       h('div', { class: 'card dark fill alignment-controls', style: { display: 'grid', gridTemplateColumns: '1.25fr 1fr 1fr 0.8fr', gap: '18px', alignContent: 'start' } },
         h('div', null, h('h3', null, '透鏡光纖 → SSC'),
@@ -254,7 +264,9 @@ export function mount(sec) {
     }
     if (active === 1 && V.s1 && V.s1.sideG.w) {
       const { sideG, facetG, meterG, bigEta, bigDb } = V.s1;
-      drawOpticalSide(sideG, p, pose, { ...zoomView(), eta: e, flow, time: flowTime });
+      const sidePose = sidePlane === 'y' ? { ...pose, dx: pose.dy, tx: pose.ty } : pose;
+      const sideParams = sidePlane === 'y' ? { ...p, wgx: p.wgy } : p;
+      drawOpticalSide(sideG, sideParams, sidePose, { ...zoomView(), eta: e, flow, time: flowTime });
       const facetKey = JSON.stringify([pose, hw, facetG.w, facetG.h, facetG.canvas.width, facetG.canvas.height]);
       if (V.s1.facetKey !== facetKey) { drawOpticalFacet(facetG, p, pose, { hw }); V.s1.facetKey = facetKey; }
       const pct = fmtPct(e), db = `${fmtDb(lossDb(e))} 損耗`;

@@ -4,6 +4,19 @@
 import { beamAt } from './physics.js';
 
 const TAU = Math.PI * 2;
+// Local oblique-section projection. The existing paraxial model treats tx/ty
+// as slopes, so the axis is proportional to (tx, ty, 1). Keep its beam width
+// and hit position; project the circular transverse section onto the facet.
+// This display correction does not change the paraxial overlap calculation.
+export function facetFootprint(p, pose) {
+  const { w } = beamAt(p, pose.gap - p.WD);
+  const ratio = Math.hypot(1, pose.tx, pose.ty);
+  return {
+    cx: pose.dx + pose.gap * pose.tx, cy: pose.dy + pose.gap * pose.ty,
+    major: w * ratio, minor: w, ratio,
+    angle: Math.hypot(pose.tx, pose.ty) ? Math.atan2(-pose.ty, pose.tx) : 0,
+  };
+}
 function background(ctx, w, h) {
   const g = ctx.createRadialGradient(w * .56, h * .45, 0, w * .56, h * .45, w * .8);
   g.addColorStop(0, '#132b40'); g.addColorStop(.55, '#0b192b'); g.addColorStop(1, '#060e1a');
@@ -37,9 +50,9 @@ export function drawOpticalSide(g, p, pose, o) {
   const span = o.zmax - o.zmin, sc = Math.min(W / span, H / (2 * o.xhw));
   const left = (W - span * sc) / 2, X = z => left + (z - o.zmin) * sc, Y = x => H / 2 - x * sc;
   ctx.save(); ctx.beginPath(); ctx.rect(Math.max(0, X(-pose.gap)), 0, Math.max(0, X(0) - Math.max(0, X(-pose.gap))), H); ctx.clip();
-  for (let i = 0; i < 8; i++) {
-    const t = (i / 8 + o.time * .17) % 1, u = t * pose.gap, x = X(-pose.gap + u), y = Y(pose.dx + u * pose.tx), r = beamAt(p, u - p.WD).w * sc * .85;
-    ctx.strokeStyle = `rgba(255,225,175,${.22 * Math.sin(Math.PI * t)})`; ctx.lineWidth = 1.2;
+  for (let i = 0; i < 5; i++) {
+    const t = (i / 5 + o.time * .26) % 1, u = t * pose.gap, x = X(-pose.gap + u), y = Y(pose.dx + u * pose.tx), r = beamAt(p, u - p.WD).w * sc * .85;
+    ctx.strokeStyle = `rgba(255,240,204,${.68 * Math.sin(Math.PI * t)})`; ctx.lineWidth = 2;
     ctx.beginPath(); ctx.moveTo(x - 3, y - r); ctx.quadraticCurveTo(x + 5, y, x - 3, y + r); ctx.stroke();
   }
   ctx.restore();
@@ -143,23 +156,38 @@ export function drawOpticalFacet(g, p, pose, o) {
   ctx.strokeStyle = '#a8ccdc40'; ctx.setLineDash([3, 5]);
   ctx.beginPath(); ctx.moveTo(X(0), 0); ctx.lineTo(X(0), H); ctx.moveTo(0, Y(0)); ctx.lineTo(W, Y(0)); ctx.stroke(); ctx.setLineDash([]);
   // Gaussian intensity gradients sampled as exp(-2r²/w²). Both contours are w.
-  const gaussian = (x, y, rx, ry, rgb) => {
-    ctx.save(); ctx.translate(x, y); ctx.scale(rx, ry);
+  const gaussian = (x, y, rx, ry, rgb, angle = 0) => {
+    ctx.save(); ctx.translate(x, y); ctx.rotate(angle); ctx.scale(rx, ry);
     const grad = ctx.createRadialGradient(0, 0, 0, 0, 0, 1.8);
     for (let i = 0; i <= 18; i++) { const r = i / 10; grad.addColorStop(r / 1.8, `rgba(${rgb},${.72 * Math.exp(-2 * r * r)})`); }
     ctx.globalCompositeOperation = 'lighter'; ctx.fillStyle = grad; ctx.beginPath(); ctx.arc(0, 0, 1.8, 0, TAU); ctx.fill(); ctx.restore();
   };
   gaussian(X(0), Y(0), p.wgx * sc, p.wgy * sc, '55,162,224');
-  const { w } = beamAt(p, pose.gap - p.WD), cx = pose.dx + pose.gap * pose.tx, cy = pose.dy + pose.gap * pose.ty;
-  gaussian(X(cx), Y(cy), w * sc, w * sc, '255,184,102');
+  const { cx, cy, major, minor, angle, ratio } = facetFootprint(p, pose);
+  gaussian(X(cx), Y(cy), major * sc, minor * sc, '255,184,102', angle);
   ctx.strokeStyle = '#74cce9'; ctx.lineWidth = 1.7;
   ctx.beginPath(); ctx.ellipse(X(0), Y(0), p.wgx * sc, p.wgy * sc, 0, 0, TAU); ctx.stroke();
   ctx.strokeStyle = '#edc18d'; ctx.lineWidth = 1.5;
-  ctx.beginPath(); ctx.arc(X(cx), Y(cy), w * sc, 0, TAU); ctx.stroke();
+  ctx.beginPath(); ctx.ellipse(X(cx), Y(cy), major * sc, minor * sc, angle, 0, TAU); ctx.stroke();
   for (const [x, y, color] of [[X(0), Y(0), '#9ddff0'], [X(cx), Y(cy), '#ffe3b4']]) {
     ctx.strokeStyle = color; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(x - 5, y); ctx.lineTo(x + 5, y); ctx.moveTo(x, y - 5); ctx.lineTo(x, y + 5); ctx.stroke();
   }
   scaleBar(ctx, 18, H - 18, st * sc, st);
   ctx.font = '12px system-ui'; ctx.textAlign = 'right'; ctx.textBaseline = 'bottom'; ctx.fillStyle = '#a0b9cc';
   ctx.fillText('輪廓：1/e² 光強度', W - 16, H - 16);
+  // Small alignment angles produce sub-percent ellipticity. Show the excess
+  // aspect ratio separately, never stretch the calibrated main view or eta.
+  const boxW = 196, boxH = 132, bx = W - boxW - 12, by = 12;
+  ctx.fillStyle = '#0b192bf2'; ctx.fillRect(bx, by, boxW, boxH);
+  ctx.strokeStyle = '#496276'; ctx.lineWidth = 1; ctx.strokeRect(bx, by, boxW, boxH);
+  ctx.textAlign = 'left'; ctx.textBaseline = 'top'; ctx.font = '12px system-ui';
+  ctx.fillStyle = '#edc18d'; ctx.fillText('形變放大 ×50（示意）', bx + 10, by + 9);
+  const ix = bx + boxW / 2, iy = by + 66, r = 23;
+  ctx.strokeStyle = '#8099ad'; ctx.setLineDash([3, 4]);
+  ctx.beginPath(); ctx.arc(ix, iy, r, 0, TAU); ctx.stroke(); ctx.setLineDash([]);
+  ctx.strokeStyle = '#edc18d'; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.ellipse(ix, iy, r * (1 + 50 * (ratio - 1)), r, angle, 0, TAU); ctx.stroke();
+  ctx.fillStyle = '#c8dce8'; ctx.fillText(`主圖長短軸比 ${ratio.toFixed(5)}`, bx + 10, by + 103);
+  ctx.textAlign = 'left'; ctx.fillStyle = '#a0b9cc';
+  ctx.fillText('主圖：局部截面投影（近軸）', 16, 16);
 }

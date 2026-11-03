@@ -73,3 +73,13 @@
 .camera-optics .camera-feature-state { flex:none; padding:10px 16px; color:#a9dfcf; background:#102d2b; border:1px solid #2f625b; border-radius:10px; font-size:16px; font-weight:600; }
 .camera-optics .camera-feature-state.degraded { color:#ffcca4; background:#35291f; border-color:#8a6240; }
 .camera-optics .camera-takeaway { padding:12px 16px; }
+.camera-optics .cam { background:radial-gradient(ellipse at 50% 50%,#142737,#070f1c 75%); border-color:#38566a; }
+.sp22.camera-optics .cam-hud { top:16px; left:18px; background:#0b1928d9; color:#a9c1d3; border:1px solid #2d455a; padding:6px 10px; font-size:12px; }
+.camera-focus-lock { position:absolute; right:18px; top:16px; padding:6px 12px; color:#a8e8d9; background:#102e2ddd; border:1px solid #39776b; border-radius:99px; font-size:13px; font-weight:700; }
+.sp22.camera-optics .cam-stat { top:auto; bottom:16px; right:18px; font-size:13px; padding:7px 12px; }
+.sp22.camera-optics .cam-stat.bad { background:#352b23ed; border:1px solid #886a48; color:#f3cea0; box-shadow:none; }
+.sp22.camera-optics .cam-stat.ok { background:#12332fed; border:1px solid #39776b; color:#a8e8d9; }
+.camera-optics .camera-detail { height:204px; }
+.camera-optics .camera-crop figcaption { display:flex; align-items:center; justify-content:space-between; background:#132235; border-bottom:1px solid #2b4055; padding:11px 14px; }
+.camera-optics .camera-crop figcaption small { font-size:11px; color:#89bdb6; }
+.camera-optics .camera-feature-state { font-size:14px; }
