@@ -132,7 +132,7 @@
 .machine-ui .fv .pm { height:5px; margin-top:7px; }
 .machine-ui .fv .pm i { background:#e9c394; }
 .machine-ui .micro-note { position:absolute; left:20px; bottom:8px; z-index:3; color:#c0cfdb; background:#102235de; padding:2px 7px; border-radius:4px; font-size:10px; pointer-events:none; }
-.machine-ui .validation-kpis { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:12px; flex:none; }
+.machine-ui .validation-kpis { display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); gap:12px; flex:none; }
 .machine-ui .validation-kpi { padding:13px 18px; border:1px solid #40586d; border-top:2px solid var(--kpi-color); border-radius:9px; background:linear-gradient(145deg,#203448,#142536); }
 .machine-ui .validation-kpi > span { font-size:12px; color:#b8c9d8; }
 .machine-ui .validation-kpi strong { display:block; margin-top:7px; color:var(--kpi-color); font:600 26px var(--mono); }

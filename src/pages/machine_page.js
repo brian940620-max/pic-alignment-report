@@ -432,6 +432,8 @@ export function faMachineSlide(body) {
 export function summarySlide(body) {
   addCss(body);
   const R = buildMachineRun(), RUN = ZT.run;
+  const finalDb = R.at(R.total).db;
+  const couplingEfficiency = finalDb === null ? '—' : (Math.pow(10, finalDb / 10) * 100).toFixed(1);
   const cv = h('canvas', { class: 'cv', style: { height: '240px' } });
   const cvP = h('canvas', { class: 'cv', style: { height: '200px' } });          // 耦合光功率對時間
   const mx = h('table', { class: 'tb mx' },
@@ -451,7 +453,8 @@ export function summarySlide(body) {
   body.append(evidence('本頁整理設計規格與單次模擬；實機精度與重複性待量測'),
     h('div', { class: 'validation-kpis' },
       card('48 → 0.7', ' mm', '粗動接近範例', '#8db9e2'), card('±40 / ±50', ' µm', '相機 XY / 間距規格', '#bfa8eb'),
-      card(RUN.gapErr.toFixed(2), ' µm', '最終間距誤差 · 單次模擬', '#edbe89'), card((RUN.xyRes * 1000).toFixed(0), ' nm', '最終核心偏差 · 單次模擬', '#edbe89')),
+      card(RUN.gapErr.toFixed(2), ' µm', '最終間距誤差 · 單次模擬', '#edbe89'), card((RUN.xyRes * 1000).toFixed(0), ' nm', '最終核心偏差 · 單次模擬', '#edbe89'),
+      card(couplingEfficiency, ' %', '光耦合效率 · 單次模擬', '#9bd3c0')),
     h('div', { class: 'grid fill summary-layout' },
       h('div', { class: 'card col summary-curves' },
         h('h2', null, '對位收斂歷程'), h('p', { class: 'summary-sub' }, '先進入相機視野，再由壓電平台完成微調'), cv,

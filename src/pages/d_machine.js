@@ -4,7 +4,7 @@ import { h } from '../ui.js';
 export function mount(sec) {
   const target = sec;
   let page = 0;
-  sec = { slide(opts, build) { const index = ++page; target.slide(opts, body => {
+  sec = { slide(opts, build) { const index = ++page; target.slide({ ...opts, layout: 'machine' }, body => {
     const slide = body.closest('.slide');
     slide.classList.add('edge-ui', 'machine-ui', `machine-page-${index}`);
     const hooks = build(body);
